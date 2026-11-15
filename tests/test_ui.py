@@ -11,23 +11,25 @@ class UIServingTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/html', response.headers['content-type'])
         self.assertIn('ResolveAI', response.text)
-        self.assertEqual(client.get('/ui/app.js').status_code, 200)
-        self.assertEqual(client.get('/ui/style.css').status_code, 200)
+        self.assertIn('Sign in as support', response.text)
+        self.assertEqual(client.get('/ui/login.js').status_code, 200)
+        self.assertEqual(client.get('/ui/access.css').status_code, 200)
+        self.assertEqual(client.get('/ui/role-workspace.js').status_code, 401)
         self.assertEqual(client.get('/health').json(), {'ok': True})
 
-    def test_judges_entry_opens_existing_case_catalogue(self):
+    def test_judges_entry_requires_role_login(self):
         client=TestClient(app)
         response=client.get('/judges')
         self.assertEqual(response.status_code,200)
-        self.assertTrue(str(response.url).endswith('/ui/design-preview.html?demo=1'))
-        self.assertIn('Demo cases · 20',response.text)
-        for asset in ['demo-scenarios.js','demo-panel.js','demo-panel.css','review-access.js']:
-            self.assertEqual(client.get('/ui/'+asset).status_code,200)
+        self.assertTrue(str(response.url).endswith('/?judges=1'))
+        self.assertIn('Sign in as approver',response.text)
+        response=client.get('/judges?role=agent')
+        self.assertTrue(str(response.url).endswith('/login/agent?demo=1'))
 
     def test_review_entry_opens_login_gate(self):
         response=TestClient(app).get('/review')
         self.assertEqual(response.status_code,200)
-        self.assertTrue(str(response.url).endswith('/ui/design-preview.html?review=1'))
+        self.assertTrue(str(response.url).endswith('/login/approver'))
 
     def test_environment_file_is_not_exposed_as_an_asset(self):
         client = TestClient(app)

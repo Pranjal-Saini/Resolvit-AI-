@@ -1,16 +1,16 @@
 # Twenty-case UI demo catalogue
 
-Open http://127.0.0.1:8010/judges (the stable judge entry point), or choose **Demo cases · 20** in the design preview.
+Open http://127.0.0.1:8010/judges and choose a role, or sign in at `/login/agent` or `/login/approver` and choose **Demo cases · 20**. Credentials are in `REVIEW_LOGIN.md`.
 
-This is an isolated, scripted design-review panel. It does not call the real agent, execute gateway actions, connect to Paytm or mutate a database. Its checks establish UI routing and presentation, not policy-engine or Paytm API compatibility. The main application is unchanged.
+This panel contains isolated, scripted examples inside each authenticated workspace. It does not call the real agent, execute gateway actions, connect to Paytm or mutate a database. Its checks establish role-specific controls and presentation, not policy-engine or Paytm API compatibility. The live queue is separate and backend-connected.
 
 ## Use during the presentation
 
 1. Filter a category and inspect the customer query, expected behavior and integration scope.
-2. Select **Load case**. Routine cases show a clearly labelled AI observation and never enter the human queue. Escalated cases require takeover. Review cases show a specific approval action.
-3. Exercise Approve, Reject or Request information. A request for information enters the human queue; human replies remain unavailable until takeover.
+2. Select **Try this scenario** for a route belonging to your role, or **View expected outcome** for a read-only observation. Routine AI cases never enter either private staff queue.
+3. Human-support accounts can simulate replies for human scenarios. Approver accounts can simulate approval, rejection or information requests for review scenarios. Simulated handoffs do not open the other person's workspace.
 4. Use **Run 20 UI checks** to verify the displayed fixture routes. A passed UI check can still carry a backend integration gap.
-5. Select **Reset preview** to return to the original two-persona example.
+5. Select **Return to live queue** to leave the fixture and view your real role-scoped cases.
 
 ## Catalogue
 
@@ -39,7 +39,7 @@ This is an isolated, scripted design-review panel. It does not call the real age
 
 ## Verification result
 
-All 20 scripted UI cases passed DOM checks. Additional assertions cover two personas, category filtering, contact-specific approval, exact amount display, information handoff, takeover gating, compromise blocking, and zero network side effects. These tests use jsdom and do not establish pixel rendering or mobile/browser behavior.
+All 20 scripted cases passed DOM checks for each role (40 role/scenario combinations). Assertions cover role-specific controls, category filtering, contact changes, compromise blocking, and zero scenario network side effects. Separate HTTP/UI tests verify live information handoff and gateway actions. These tests use jsdom and do not establish pixel rendering or mobile/browser behavior.
 
 Run:
 

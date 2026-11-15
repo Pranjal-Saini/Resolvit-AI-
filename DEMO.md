@@ -1,33 +1,34 @@
-# Live demo: one question, the full journey
+# Live demo with two separate staff roles
 
-Open http://127.0.0.1:8010 → Customer support → **Prepare live demo**. This selects **C001 Rahul Sharma** and starts a fresh conversation. It does not send automatically.
+Launch the dedicated examples without resetting the working database:
 
-## Customer question
+```bash
+RESOLVEAI_DEMO_DB=/tmp/resolveai-role-demo.db .venv/bin/python -m scripts.role_demo_server
+```
 
-> ₹5,000 was deducted for my flight booking, but the payment failed. Can you check what happened and help me get my money back?
+A new file receives ten customers, twenty transactions and two gateway-backed illustrative cases. An existing file preserves its actions on restart. The examples are pre-created; their setup does not call an AI provider. All payment data is mocked.
+
+## Open two tabs
+
+1. Human support: http://127.0.0.1:8010/login/agent — `support` / `DemoSupport!2026`.
+2. Approver: http://127.0.0.1:8010/login/approver — `approver` / `DemoReview!2026`.
+
+The sessions are separate even in one browser. Each role sees only its own queue and actions. There is no switch to the other workspace inside the dashboard.
 
 ## Present in three minutes
 
-1. **Send.** Say: “The customer describes a problem naturally; no transaction ID is needed.”
-2. **Expand Actions & policy citations.** Show the transaction lookup, T1002, the policy and `trigger_reversal` returning `needs_approval`. Say: “The AI identifies the request, but the gateway enforces the ₹2,000 auto-reversal limit.”
-3. **Open the case.** Show `awaiting_approval`, the ₹5,000 amount and policy reference. No money has moved yet.
-4. **Approve as reviewer.** Sign in with the dummy account in `REVIEW_LOGIN.md`, then click Approve action. The server records the signed-in reviewer. No OTP is required. Show `resolved` and refund reference `RFND-T1002`.
-5. **Show the customer confirmation and audit trail.** Point out the human approval and executed reversal. Say: “Every action is recorded, and repeated approval cannot refund twice.”
+1. In support, open **CASE-DEMO-SUPPORT**. The customer reports account compromise. Show the confirmed mock wallet freeze and escalation; reply as human support. Routine AI chats are absent from this queue.
+2. In the approver tab, open **CASE-DEMO-REVIEW**. The question is: “My ₹5,000 flight payment failed after debit. Can you reverse it?” Show the requested action, amount and policy reference. No money has moved yet.
+3. For the handoff demonstration, enter a receipt request and choose **Request information**. The case leaves the approver queue. Refresh support; it appears there, without any approval control.
+4. Support can reply, then enter the information and choose **Return information to approver**. The case leaves support's queue and returns to the approver.
+5. Approve the action. The gateway processes the mock refund once and records the authenticated approver; repeated approval is blocked. The decision appears under Completed work.
 
-## Optional contrasts
+The ₹2,000 cap is the project's internal demo rule, not a claim about Paytm policy. No OTP is required for the mock approved contact-change flow.
 
-- Automatic: C001 — “₹499 got debited for my electricity bill but it failed.”
-- Protection: C002 — “Someone hacked my account. Please freeze my wallet immediately.”
-- Ambiguity: C001 on fresh data — “My payment failed.” The assistant should ask which payment.
+## Let judges explore
 
-## Before presenting
+Choose **Demo cases · 20** in either dashboard. The catalogue covers the requested UPI/transfers, recharge/bills, wallet/voucher and account-protection scenarios. Each has a query, expected behavior and integration scope. Run **20 UI checks**; both roles have access to the catalogue, but only their own routes have interactive simulated actions. Other routes remain read-only. The fixtures make no live agent, gateway or Paytm calls.
 
-Use fresh dedicated demo data. A new conversation does not reset transactions; an already-reversed T1002 will not produce a new approval request. Check Groq quota; the small local fallback escalates payment flows rather than reliably completing them. Signed-in reviewers are recorded for audit attribution. Never project `.env`. No real Paytm money moves.
+Return to the live queue when finished. Approving or resolving a live example changes the dedicated demo database; restarting the server does not undo it. Use a new dedicated filename for a fresh live presentation. Never reseed the working database merely to reset a presentation.
 
-## Regular local launch
-
-```bash
-.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-```
-
-Open http://127.0.0.1:8000. Only reseed if you intend to clear that database’s demo activity.
+The customer team's software continues to call `/chat` with the existing demo-token contract. For prior live Groq rule-engine results, see `FINAL_JOINT_CHECK.md`; for the latest role checks, see `ROLE_ACCESS_CHECK.md`. The smaller local Ollama fallback is not a reliable substitute for the configured Groq payment flows. Never project `.env`.

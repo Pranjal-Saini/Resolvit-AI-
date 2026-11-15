@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS approvals (
 CREATE TABLE IF NOT EXISTS step_up_verifications (
     case_id TEXT PRIMARY KEY REFERENCES cases(id), verified_by TEXT NOT NULL, verified_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS case_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id TEXT NOT NULL REFERENCES cases(id),
+    role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL,
     case_id TEXT NOT NULL REFERENCES cases(id), actor TEXT NOT NULL,
@@ -51,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
 CREATE INDEX IF NOT EXISTS idx_approvals_case ON approvals(case_id, status);
 CREATE INDEX IF NOT EXISTS idx_audit_case ON audit_log(case_id);
 CREATE INDEX IF NOT EXISTS idx_audit_idempotency ON audit_log(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_messages_case ON case_messages(case_id, id);
 """
 
 

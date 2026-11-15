@@ -1,6 +1,6 @@
 # ResolveAI · Paytm hackathon demo
 
-ResolveAI combines a mocked payment database, deterministic tool gateway, policy retrieval, an AI support agent, a live support dashboard and a separate two-persona judge prototype. No real Paytm payment APIs are connected.
+ResolveAI combines a mocked payment database, deterministic tool gateway, policy retrieval and an AI support agent with separate, authenticated human-support and approver workspaces. No real Paytm payment APIs are connected.
 
 ## Local setup
 
@@ -18,6 +18,7 @@ On a fresh checkout, copy `.env.example` to `.env` and configure:
 - `GROQ_MODEL`: the model available to your account. The local tested configuration uses `openai/gpt-oss-20b`.
 - `OLLAMA_MODEL` / `OLLAMA_BASE_URL`: optional local fallback. The tested `llama3.2:3b` fallback did not reliably complete payment workflows; it is not a guaranteed demo substitute.
 - `REVIEWER_USERNAME=approver` and `REVIEWER_PASSWORD=DemoReview!2026`: intentionally shared dummy credentials for the local judge demonstration only.
+- `AGENT_USERNAME=support` and `AGENT_PASSWORD=DemoSupport!2026`: a separate dummy human-support account. Each account can enter only its own workspace.
 
 Create fresh demo data only when intentionally starting or resetting a database:
 
@@ -35,14 +36,24 @@ python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8010
 
 | URL | Purpose |
 |---|---|
-| http://127.0.0.1:8010/ | Live backend-connected dashboard |
-| http://127.0.0.1:8010/judges | Existing two-persona design with the 20-case judge panel open |
-| http://127.0.0.1:8010/review | Review-queue sign-in for the prototype |
+| http://127.0.0.1:8010/ | Choose a role and sign in |
+| http://127.0.0.1:8010/login/agent | Human-support sign-in → private escalation workspace |
+| http://127.0.0.1:8010/login/approver | Approver sign-in → private review workspace |
+| http://127.0.0.1:8010/judges?role=agent | Support sign-in, then open the 20-case panel |
+| http://127.0.0.1:8010/judges?role=approver | Approver sign-in, then open the 20-case panel |
 | http://127.0.0.1:8010/docs | Backend API documentation |
 
-The **judge panel is scripted UI testing**, not a live AI or Paytm test. It has a Load case action, expected behavior, compatibility notes and Run 20 UI checks. Twelve cases explicitly flag missing provider integrations. It makes no real financial changes. The two-persona prototype's human takeover/return actions are simulated, not implemented as live backend ownership controls.
+For a presentation with a pre-created support case and a ₹5,000 approval case, use a separate dedicated database:
 
-Reviewer login is enforced by the server for `/review/queue`, the awaiting-approval filter and approval/rejection APIs. Prototype review navigation also requires login. The server session is separate from the UI's simulated scenario state. The demo assumes trusted local access for human-agent case data; it is not production authentication for every API.
+```bash
+RESOLVEAI_DEMO_DB=/tmp/resolveai-role-demo.db python -m scripts.role_demo_server
+```
+
+It seeds only a new file and preserves its activity on restart. Do not run two servers on port 8010 at once. This does not reset `backend/resolveai.db`.
+
+The live queues and actions are backend-connected. Support can reply to escalated cases and complete investigations; approvers can approve/reject or request information. Handoff moves the case between role-scoped queues. Each role has its own HttpOnly session cookie, so separate tabs can stay signed in independently. Case lists, details, customer lists, metrics and audits are scoped by the server. Private case history is stored per case; older session-wide history is not exposed across roles.
+
+The **20-case judge panel is scripted UI testing**, not a live AI or Paytm test. Interactive controls are restricted to the signed-in role; other routes are read-only fictional observations. Twelve scenarios flag provider-integration gaps. These fixtures never mutate a database. Routine AI chats stay outside both staff queues; the customer layer continues to use `/chat` with the existing demo-token contract.
 
 ## Automated checks
 
@@ -74,7 +85,8 @@ Restart the fixture server before rerunning `check_ui.cjs`, which expects fresh 
 - `DEMO.md`: presenter flow for the live payment/approval demonstration.
 - `DEMO_CASE_CATALOG.md`: 20 judge scenarios and explicit integration gaps.
 - `REVIEW_LOGIN.md`: dummy sign-in and session behavior.
-- `FINAL_JOINT_CHECK.md`: latest final verification and remaining limitations.
-- `TWO_PERSONA_UI_PLAN.md`: previously researched proposal; not a claim that the prototype is fully backend-connected.
+- `ROLE_ACCESS_CHECK.md`: latest role-isolation verification and boundaries.
+- `FINAL_JOINT_CHECK.md`: preceding engine verification, including the 15 live Groq conditions and fallback limitations.
+- `TWO_PERSONA_UI_PLAN.md`: historical design proposal; the login/workspace behavior is now described above.
 
-Secrets, SQLite files, generated policy indexes and raw query transcripts are excluded from Git. The legacy Streamlit file `ui/app.py` is retained but is not the supported entry point for this final HTML-dashboard verification.
+Secrets, SQLite files, generated policy indexes and raw query transcripts are excluded from Git. Legacy HTML/prototype and Streamlit sources are retained but are not publicly served as alternate dashboards. This local demo uses one configured account per role and process-local sessions; it is not a production identity provider. Restarting the server expires logins.

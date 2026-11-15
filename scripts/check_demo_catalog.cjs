@@ -1,26 +1,34 @@
-/* Test-only DOM checks. Requires jsdom; never calls Paytm, an LLM or the backend. */
-const {JSDOM}=require('jsdom'),fs=require('fs'),assert=require('node:assert/strict');
-const html=fs.readFileSync('ui/design-preview.html','utf8');
-const dom=new JSDOM(html,{runScripts:'outside-only',url:'http://127.0.0.1:8010/ui/design-preview.html'});
-const w=dom.window,d=w.document;let networkCalls=0;
-w.fetch=()=>{networkCalls++;throw Error('Prototype must not call a live API');};
-w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
-const inline=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter(m=>!m[1].includes('src=')).map(m=>m[2]).join('\n');
-w.eval(fs.readFileSync('ui/demo-scenarios.js','utf8')+'\n'+inline+'\n'+fs.readFileSync('ui/demo-panel.js','utf8'));
-assert.equal(w.DEMO_SCENARIOS.length,20);assert.equal(new Set(w.DEMO_SCENARIOS.map(s=>s.id)).size,20);
-assert.equal(d.querySelectorAll('.nav button').length,2);
-const results=w.DEMO_SCENARIOS.map(s=>w.ResolveAIDemo.check(s.id));
-assert(results.every(r=>r.passed),JSON.stringify(results.filter(r=>!r.passed)));
-const click=s=>d.querySelector(s).click();
-w.ResolveAIDemo.load('19');assert(d.querySelector('[data-decision="approved"]').textContent.includes('contact'));assert(!d.querySelector('[data-decision="approved"]').textContent.includes('₹5,000'));
-click('[data-decision="approved"]');assert(d.querySelector('#content').textContent.includes('contact change was approved'));
-w.ResolveAIDemo.load('04');assert(d.querySelector('[data-decision="approved"]').textContent.includes('2,001'));
-d.querySelector('#decision-note').value='Need proof';click('[data-decision="info"]');click('#go-agent');assert(d.querySelector('#takeover'));assert.equal(d.querySelector('#reply'),null);
-click('#takeover');assert(d.querySelector('#reply'));
-w.ResolveAIDemo.load('20');assert(d.querySelector('#content').textContent.includes('Contact changes are blocked'));assert.equal(d.querySelector('[data-decision="approved"]'),null);
-click('#demo-cases');assert.equal(d.querySelectorAll('.scenario-row').length,20);
-d.querySelector('#demo-filter').value='Recharges & bills';d.querySelector('#demo-filter').dispatchEvent(new w.Event('change'));assert.equal(d.querySelectorAll('.scenario-row').length,6);
-click('#check-all-scenarios');assert(d.querySelector('#demo-check-summary').textContent.startsWith('20/20'));
-assert.equal(networkCalls,0);
-console.log(JSON.stringify({uiCasesPassed:results.length,backendIntegrationGaps:w.DEMO_SCENARIOS.filter(s=>s.gap).length,checks:['all 20 fixture routes','two personas only','contact-specific approval','exact-cap boundary display','information handoff and takeover','compromise blocks approval','category filter','no network side effects']},null,2));
-dom.window.close();
+/* Both roles must see the 20 scripted fixtures with only their own interactive controls. */
+const fs=require('fs'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+(async()=>{
+ const results=[];
+ for(const role of ['agent','approver']){
+  const html=fs.readFileSync('ui/role-workspace.html','utf8').replaceAll('__ROLE__',role).replaceAll('__LABEL__',role);
+  const dom=new JSDOM(html,{runScripts:'outside-only',url:'http://127.0.0.1:8011/'+role});
+  const w=dom.window,d=w.document;let calls=0;
+  w.setInterval=()=>0;
+  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+  w.fetch=async path=>{calls++;return {ok:true,status:200,json:async()=>path==='/cases'?[]:{username:role}};};
+  w.eval(fs.readFileSync('ui/demo-scenarios.js','utf8'));w.eval(fs.readFileSync('ui/role-workspace.js','utf8'));
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(w.DEMO_SCENARIOS.length,20);
+  const before=calls;
+  assert(w.WorkspaceDemo.runChecks().every(result=>result.passed));
+  for(const scenario of w.DEMO_SCENARIOS){
+   w.WorkspaceDemo.load(scenario.id);
+   const own=scenario.route===(role==='agent'?'human':'review');
+   assert.equal(Boolean(d.querySelector('[data-demo-action]')),own);
+   if(role==='agent')assert.equal(d.querySelector('[data-demo-action="approve"]'),null);
+   if(role==='approver')assert.equal(d.querySelector('[data-demo-action="reply"]'),null);
+   if(scenario.id==='20')assert(d.querySelector('#case-content').textContent.includes('Contact changes are blocked'));
+  }
+  d.querySelector('#demo-cases').click();assert.equal(d.querySelectorAll('.scenario').length,20);
+  d.querySelector('#category-filter').value='Recharges & bills';d.querySelector('#category-filter').dispatchEvent(new w.Event('change'));
+  assert.equal(d.querySelectorAll('.scenario').length,6);
+  assert.equal(calls,before);
+  assert.equal(d.querySelector('#review-tab'),null);assert.equal(d.querySelector('#agent-tab'),null);
+  results.push({role,passed:20,providerIntegrationGaps:w.DEMO_SCENARIOS.filter(s=>s.gap).length});dom.window.close();
+ }
+ console.log(JSON.stringify({results,noLiveScenarioRequests:true},null,2));
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -50,9 +50,9 @@ def seed():
     conn = db.get_conn()
     try:
         with conn:
-            for table in ('step_up_verifications', 'audit_log', 'approvals', 'cases', 'sessions', 'transactions', 'customers'):
+            for table in ('case_messages', 'step_up_verifications', 'audit_log', 'approvals', 'cases', 'sessions', 'transactions', 'customers'):
                 conn.execute('DELETE FROM ' + table)
-            conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('approvals','audit_log')")
+            conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('approvals','audit_log','case_messages')")
             conn.executemany('INSERT INTO customers VALUES (?,?,?,?,?,?,?)', customers)
             conn.executemany('INSERT INTO transactions VALUES (?,?,?,?,?,?,?)', transactions)
     finally:

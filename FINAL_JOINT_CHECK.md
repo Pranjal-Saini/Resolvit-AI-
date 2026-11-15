@@ -1,5 +1,7 @@
 # Final joint check · 15 November 2026
 
+> Access/UI update: separate authenticated support and approver interfaces now replace the shared dashboard/prototype entry points described in this historical round. See `ROLE_ACCESS_CHECK.md` for the latest 42-test and two-workspace verification, and `REVIEW_LOGIN.md` for both links. The 15 live Groq results below are from the preceding engine round; that paid provider run was not repeated for the role-access change.
+
 The configured Groq agent passed all 15 live customer-query conditions in one fresh round. Backend, gateway, reviewer-login and scripted UI checks passed. The local Ollama fallback still fails to complete two payment workflows safely enough for a dependable demonstration: both escalated without moving money. This is a verified hackathon demo, not a certification that every possible input is bug-free or that Paytm is integrated.
 
 No UI layout or visual redesign was made during this final check. The existing judge catalogue is now reachable through `/judges`, and review sign-in through `/review`. The existing two-persona prototype has not replaced the live dashboard at `/`.

@@ -56,11 +56,14 @@ class BackendChecks(unittest.TestCase):
     def setUp(self):
         seed.seed()
 
-    def request(self, method, path, **kwargs):
+    def request(self, method, path, role='approver', **kwargs):
         with requests.Session() as session:
-            if method=='POST' and path.endswith(('/approve','/reject')):
-                with patch.dict(os.environ,{'REVIEWER_USERNAME':'Reviewer','REVIEWER_PASSWORD':'test-password'}):
-                    session.post(self.base+'/review/login',json={'username':'Reviewer','password':'test-password'},timeout=10).raise_for_status()
+            if path != '/chat':
+                prefix = 'AGENT' if role == 'agent' else 'REVIEWER'
+                endpoint = '/agent' if role == 'agent' else '/review'
+                username = 'Support' if role == 'agent' else 'Reviewer'
+                with patch.dict(os.environ,{prefix+'_USERNAME':username,prefix+'_PASSWORD':'test-password'}):
+                    session.post(self.base+endpoint+'/login',json={'username':username,'password':'test-password'},timeout=10).raise_for_status()
             return session.request(method,self.base+path,timeout=10,**kwargs)
 
     def chat(self, session='s1', customer='C001', message='hello', token=None):
@@ -149,7 +152,9 @@ class BackendChecks(unittest.TestCase):
         self.assertTrue(any(row['policy_ref'] for row in self.request('GET', '/audit').json()))
         self.assertEqual(self.chat(token='bad').status_code, 401)
         self.assertEqual(self.chat(customer='C002').status_code, 403)
-        self.assertEqual(self.request('GET', '/metrics').json()['auto_resolution_rate'], 2 / 3)
+        # Reviewer metrics include only approval work, excluding automatic AI cases.
+        self.assertEqual(self.request('GET', '/metrics').json()['auto_resolution_rate'], 0)
+        self.assertEqual(self.request('GET', '/metrics').json()['total'], 1)
         self.assertEqual(len(self.request('GET', '/tools').json()['tools']), 7)
         self.assertEqual(len(gateway.tool_definitions()), 7)
         self.assertEqual(self.request('GET', '/cases/missing').status_code, 404)
@@ -204,7 +209,9 @@ class BackendChecks(unittest.TestCase):
         agent.run_agent = fail
         with patch.dict(sys.modules, {'engine.agent': agent}):
             self.assertEqual(self.chat().json()['status'], 'escalated')
-        self.assertNotIn('9876543210', json.dumps(self.request('GET', '/cases/' + first['case_id']).json()))
+        detail = self.request('GET', '/cases/' + first['case_id'], role='agent')
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn('9876543210', json.dumps(detail.json()))
 
 
 if __name__ == '__main__':

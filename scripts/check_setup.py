@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import requests
 import uvicorn
@@ -44,12 +45,15 @@ def main():
                     response = requests.get(base + '/health', timeout=5)
                     assert response.status_code == 200
                     assert response.json() == {'ok': True}
-                    response = requests.get(base + '/customers', timeout=5)
-                    assert response.status_code == 200
-                    assert response.json() == db.fetch_all('SELECT id, name FROM customers ORDER BY id')
-                    assert len(response.json()) == 10
+                    assert len(db.fetch_all('SELECT id FROM customers')) == 10
+                    assert requests.get(base + '/customers', timeout=5).status_code == 401
+                    with patch.dict('os.environ', {'AGENT_USERNAME':'setup-support','AGENT_PASSWORD':'setup-password'}), requests.Session() as client:
+                        client.post(base+'/agent/login', json={'username':'setup-support','password':'setup-password'}, timeout=5).raise_for_status()
+                        response = client.get(base+'/customers', timeout=5)
+                        assert response.status_code == 200
+                        assert response.json() == []  # No escalated cases in a fresh seed.
                     assert requests.get(base + '/docs', timeout=5).status_code == 200
-                    print('PASS: database reset, startup preservation, contracts, /health, /customers, /docs')
+                    print('PASS: database reset, startup preservation, contracts, /health, role-scoped /customers, /docs')
                 finally:
                     server.should_exit = True
                     thread.join(timeout=10)

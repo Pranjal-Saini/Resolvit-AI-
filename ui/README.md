@@ -1,55 +1,36 @@
-# ResolveAI support workspace
+# ResolveAI staff workspaces
 
-A buildless HTML/CSS/JavaScript dashboard served by the existing FastAPI application. The visual reference is adapted into a blue navigation rail, light workspace, metric cards, case-outcome chart and review/activity column. Every metric comes from the backend; no synthetic activity or growth percentages are displayed.
+Buildless HTML/CSS/JavaScript served by FastAPI. `/` is a role chooser. `/login/agent` signs in to the human-support workspace at `/agent`; `/login/approver` signs in to the approver workspace at `/review`. Dummy credentials and the ready-to-show server command are in `REVIEW_LOGIN.md`.
 
-## Run
+Human support sees escalated cases, replies to customers and completes investigations. Approvers see pending exceptions, inspect relevant case evidence and approve/reject/request information. A handoff moves the case between private role-scoped queues. Completed work remains in the corresponding role's history. There is no in-dashboard role switch.
 
-From the repository root:
+Each role uses its own server-side session and cookie. Direct API access is restricted too: case details, messages, audit/customer lists, metrics and decision actions are checked by role. Case-specific message storage prevents unrelated cases in a session from sharing private history. Unassignable historical session history is withheld. Authenticated identity supplies attribution.
 
-```bash
-.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-```
+Both workspaces include the twenty-case judge catalogue. These are scripted fictional examples; other-role routes are read-only and every interactive simulation is labelled. They make no payment or provider calls. The live queues are backend-connected with mock financial data; no Paytm API is connected. Legacy shared UI sources remain in the repository but are not served as alternative dashboards.
 
-Open http://127.0.0.1:8000. UI and API share an origin; there is no frontend build or second server. Keep provider configuration in the ignored `.env` file. Initialize the schema with `db.init_db()`; only run `python -m backend.app.seed` when intentionally resetting demo activity.
-
-## Flows
-
-- Overview: live case counts, automatic-resolution rate, outcomes, pending reviews and recent audit events.
-- Customer support: choose any of the ten customers, start a conversation, or fill a demo scenario. Messages are sent only when you press Send. Actions, policy citations and current case details are inspectable.
-- Cases & approvals: filter cases, inspect conversations and audit records, approve or reject pending requests. Rejection requires a reviewer and reason. Support review messages are reflected in the customer conversation.
-- Audit trail: inspect real gateway decisions and filter by case.
-- Tool registry: inspect the seven tools and their input requirements.
-
-No API keys are sent to the browser. Customer identity uses the existing demo-token API contract. Reviewer decisions require the server-side login described below. Human-agent case APIs assume trusted local access. No OTP is required for contact changes. This demonstrates the workflow; it is not production identity verification.
-
-## Joint regression checks
-
-Python/API checks:
+## Verification
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m scripts.demo_check
 .venv/bin/python -m engine.test_engine
-node --check ui/app.js
+node --check ui/role-workspace.js
+node --check ui/login.js
 ```
 
-UI DOM checks use jsdom and an isolated backend, not a rendered browser:
+For DOM/HTTP checks, start a fresh isolated fixture in another terminal:
 
 ```bash
-# Terminal 1: a fresh temporary database and deterministic agent; no API charges.
 .venv/bin/python -m scripts.ui_fixture_server
-
-# Terminal 2: test-only dependency kept outside the repository.
-npm install --prefix /tmp/resolveai-ui-qa jsdom
-NODE_PATH=/tmp/resolveai-ui-qa/node_modules node scripts/check_ui.cjs
 ```
 
-Restart the fixture server before rerunning; the check expects a fresh seed. `UI_TEST_BASE` can explicitly target another isolated server for a real-agent run. These checks execute real UI event handlers, API requests and database mutations, but do not verify pixel rendering, mobile layout or browser-specific behavior.
+Then run:
 
-## Reviewer controls
+```bash
+npm install --prefix /tmp/resolveai-ui-qa jsdom
+NODE_PATH=/tmp/resolveai-ui-qa/node_modules node scripts/check_ui.cjs
+NODE_PATH=/tmp/resolveai-ui-qa/node_modules node scripts/check_review_access.cjs
+NODE_PATH=/tmp/resolveai-ui-qa/node_modules node scripts/check_demo_catalog.cjs
+```
 
-Review queue now requires a username/password login. The dummy account and direct link are in `REVIEW_LOGIN.md`. The server protects the dedicated queue and approval/rejection APIs, and records the authenticated username. Human escalation chat remains separate. No OTP is required.
-
-## Live demo
-
-Open Customer support → Prepare live demo → Send. The ₹5,000 flight-payment question demonstrates transaction identification, policy retrieval, the gateway cap, human approval and audit history. See `DEMO.md`. Use a fresh dedicated demo database: a new conversation does not undo an earlier reversal.
+Restart the fixture before rerunning the mutation workflows. It uses a temporary database and deterministic agent, so it consumes no provider tokens. DOM checks do not verify real-browser rendering, navigation, mobile layout or keyboard focus. The latest observed results and limits are in `ROLE_ACCESS_CHECK.md`.

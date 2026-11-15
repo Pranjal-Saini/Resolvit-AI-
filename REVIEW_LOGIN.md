@@ -1,14 +1,22 @@
-# Review queue demo login
+# Demo workspace logins
 
-Open http://127.0.0.1:8010/review
+| Role | Login link | Login ID | Password |
+|---|---|---|---|
+| Human support | http://127.0.0.1:8010/login/agent | `support` | `DemoSupport!2026` |
+| Approver | http://127.0.0.1:8010/login/approver | `approver` | `DemoReview!2026` |
 
-- **Username:** `approver`
-- **Password:** `DemoReview!2026`
+These intentionally shared dummy accounts are for the local hackathon demo. The server reads `AGENT_USERNAME` / `AGENT_PASSWORD` and `REVIEWER_USERNAME` / `REVIEWER_PASSWORD` from the private `.env`; credentials are not embedded in the frontend. `.env.example` leaves these values blank for a fresh checkout.
 
-These are intentionally shared dummy credentials for the local demo, not production credentials. The server reads the configured values from private `.env` (`REVIEWER_USERNAME`, `REVIEWER_PASSWORD`); they are not embedded in the frontend.
+Support signs in to `/agent`, with escalated chats and completed support work. Approvers sign in to `/review`, with pending approvals and recorded decisions. Each account can enter only its assigned workspace; there is no role-switch control inside either dashboard. Direct API requests also enforce the role. An explicit information handoff shares the relevant case with the receiving team and removes it from the sending team's queue.
 
-Selecting Review queue prompts for login. Human escalation chat remains separately accessible. Approval/rejection and the dedicated review-queue API require a server-side session. The cookie is HttpOnly and SameSite Strict, expires after one hour, and is invalidated on Sign out. Five incorrect attempts in one minute trigger a temporary rate limit.
+You can demonstrate both accounts in two tabs: separate HttpOnly/SameSite Strict cookies prevent login or sign-out from replacing the other role's session. Sessions expire after one hour and are cleared when the server restarts. Five bad logins per role/IP per minute trigger a temporary limit. HTTPS adds Secure to the cookie.
 
-The standalone design preview still uses sample cases and simulated decisions. Its login talks to the real local server, but its payment actions remain prototype-only. The live backend's approval/rejection endpoints are also protected. The agent-visible case history is not intended to become a separate privacy boundary from its approver colleagues.
+After signing in, choose **Demo cases · 20**. All 20 fictional queries are available; interactive actions are limited to your role and other routes are read-only. These scripted fixtures never execute financial actions. The live queue below them uses the actual backend with mock payment data.
 
-Use individual accounts/SSO and deployment access controls before production. Do not reuse the dummy password for real customer data.
+Start the ready-to-show local examples with:
+
+```bash
+RESOLVEAI_DEMO_DB=/tmp/resolveai-role-demo.db .venv/bin/python -m scripts.role_demo_server
+```
+
+Only a new file is seeded; existing demo activity is preserved. Stop any other server on port 8010 before running this command. No OTP is required. This single-process demo does not provide production SSO, account provisioning or real customer authentication. See `ROLE_ACCESS_CHECK.md` for verification and boundaries.
