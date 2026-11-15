@@ -12,7 +12,7 @@ A human support specialist must approve before money moves when a reversal or re
 When a customer reports a hacked or compromised account or unauthorized transactions, the agent freezes the wallet and UPI immediately, before any other step, so that no more money can leave. It then escalates the case to a human for the fraud investigation.
 
 ## Contact changes
-Changing the registered phone number or email is a sensitive action. The agent submits update_contact and the gateway holds it for authenticated specialist approval. The hackathon demo does not require an OTP or verification code. Contact details must never be changed while an account compromise is being investigated.
+Changing the registered phone number or email is a sensitive action. The agent submits update_contact and the gateway holds it for authorized specialist approval. The hackathon demo does not require an OTP or verification code. Contact details must never be changed while an account compromise is being investigated.
 
 ## Follow-ups
 If a refund is initiated but not yet credited, the agent schedules a follow-up to recheck the status before the RBI turnaround time ends.

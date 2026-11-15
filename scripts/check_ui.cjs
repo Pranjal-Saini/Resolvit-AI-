@@ -11,11 +11,14 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  const errors=[];const console=new VirtualConsole();console.on('jsdomError',e=>errors.push(e.message));
  const dom=new JSDOM(html,{url:base,runScripts:'outside-only',virtualConsole:console});
  const w=dom.window,d=w.document;
- w.fetch=(url,options)=>fetch(new URL(url,base),options);
+ let cookie='';
+ const fetchWithCookie=async(url,options={})=>{const r=await fetch(new URL(url,base),{...options,headers:{...options.headers,...(cookie?{Cookie:cookie}:{})}});const set=r.headers.get('set-cookie');if(set)cookie=set.split(';')[0];return r;};
+ w.fetch=fetchWithCookie;
  w.AbortController=AbortController;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
- w.eval(fs.readFileSync('ui/app.js','utf8'));
+ w.eval(fs.readFileSync('ui/app.js','utf8')+'\n'+fs.readFileSync('ui/review-access.js','utf8'));
+ const login=await w.fetch('/review/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:process.env.UI_REVIEW_USER||'ui-approver',password:process.env.UI_REVIEW_PASSWORD||'ui-test-password'})});assert.equal(login.status,200);
  const click=selector=>{assert(d.querySelector(selector),'Missing '+selector);d.querySelector(selector).click();};
  await waitFor(()=>d.querySelector('#connection').textContent==='Backend connected','initial connection');
  assert.equal(d.querySelectorAll('#customer option').length,10);
@@ -37,7 +40,7 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  click('#messages [data-case]');
  await waitFor(()=>d.querySelector('#approve-action'),'approval dialog');
  d.querySelector('#reviewer').value='Joint UI check';
- if(d.querySelector('#reviewer-key'))d.querySelector('#reviewer-key').value=process.env.UI_REVIEWER_KEY || 'test-ui-only-access-key';
+ assert.equal(d.querySelector('#reviewer-key'),null);
  click('#approve-action');
  await waitFor(()=>!d.querySelector('#approve-action')&&d.querySelector('#case-detail .badge.resolved'),'approved case');
  assert(d.querySelector('#case-detail').textContent.includes('RFND-T1002'));
@@ -66,7 +69,7 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  click('#reject-action');
  assert(d.querySelector('#review-feedback').textContent.includes('Enter your name'));
  d.querySelector('#reviewer').value='Joint UI check';
- if(d.querySelector('#reviewer-key'))d.querySelector('#reviewer-key').value=process.env.UI_REVIEWER_KEY || 'test-ui-only-access-key';d.querySelector('#reject-note').value='Identity verification required';
+ assert.equal(d.querySelector('#reviewer-key'),null);d.querySelector('#reject-note').value='Identity verification required';
  click('#reject-action');
  await waitFor(()=>!d.querySelector('#reject-action')&&d.querySelector('#case-detail .badge.rejected'),'rejected case');
  click('#close-dialog');
@@ -87,7 +90,7 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  await waitFor(()=>!d.querySelector('#alert').hidden,'offline error');
  assert(d.querySelector('#connection').classList.contains('offline'));
  output.push('PASS: backend outage is visible with a readable error');
- w.fetch=(url,options)=>fetch(new URL(url,base),options);
+ w.fetch=fetchWithCookie;
  click('.reload');
  await waitFor(()=>d.querySelector('#connection').textContent==='Backend connected','backend recovery');
  assert.equal(d.querySelectorAll('#customer option').length,10);

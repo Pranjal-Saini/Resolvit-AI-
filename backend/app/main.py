@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 import json
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
@@ -46,13 +46,28 @@ class Rejection(Review):
 
 
 class ReviewerLogin(BaseModel):
-    reviewer: str = Field(min_length=1, pattern=r'\S')
-    access_key: str = Field(min_length=1)
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
 
 
-@app.post('/reviewer/login')
-def reviewer_login(body: ReviewerLogin):
-    return reviewer_auth.login(body.reviewer, body.access_key)
+@app.post('/review/login')
+def review_login(body: ReviewerLogin, request: Request, response: Response):
+    return reviewer_auth.login(body.username,body.password,request,response)
+
+
+@app.get('/review/session')
+def review_session(identity: str = Depends(reviewer_auth.require_reviewer)):
+    return {'reviewer':identity}
+
+
+@app.post('/review/logout')
+def review_logout(request: Request, response: Response):
+    return reviewer_auth.logout(request,response)
+
+
+@app.get('/review/queue')
+def review_queue(identity: str = Depends(reviewer_auth.require_reviewer)):
+    return db.fetch_all("SELECT id,customer_id,status,summary,created_at FROM cases WHERE status='awaiting_approval' ORDER BY created_at")
 
 
 def get_case(case_id):
@@ -118,7 +133,9 @@ def chat(request: ChatRequest):
 
 
 @app.get('/cases')
-def cases(status: str | None = None):
+def cases(request: Request, status: str | None = None):
+    if status == 'awaiting_approval':
+        reviewer_auth.require_reviewer(request)
     sql = 'SELECT id,customer_id,status,summary,created_at FROM cases'
     return db.fetch_all(sql + (' WHERE status=?' if status else '') + ' ORDER BY created_at DESC', (status,) if status else ())
 
@@ -147,8 +164,7 @@ def pending_approval(case_id):
 
 @app.post('/cases/{case_id}/approve')
 def approve(case_id: str, review: Review, identity: str = Depends(reviewer_auth.require_reviewer)):
-    if review.reviewer != identity:
-        raise HTTPException(403, 'Reviewer identity mismatch')
+    review.reviewer = identity
     with gateway.LOCK:
         case, approval = pending_approval(case_id)
         ctx = CallContext(case_id=case_id, session_id=case['session_id'], customer_id=case['customer_id'], approved_by=review.reviewer)
@@ -165,8 +181,7 @@ def approve(case_id: str, review: Review, identity: str = Depends(reviewer_auth.
 
 @app.post('/cases/{case_id}/reject')
 def reject(case_id: str, review: Rejection, identity: str = Depends(reviewer_auth.require_reviewer)):
-    if review.reviewer != identity:
-        raise HTTPException(403, 'Reviewer identity mismatch')
+    review.reviewer = identity
     with gateway.LOCK:
         case, approval = pending_approval(case_id)
         db.execute("UPDATE approvals SET status='rejected',reviewer=?,note=? WHERE case_id=? AND status='pending'", (review.reviewer, pii.mask(review.note, case['session_id']), case_id))
@@ -180,9 +195,7 @@ class AgentMessage(Review):
 
 
 @app.post('/cases/{case_id}/message')
-def message_customer(case_id: str, body: AgentMessage, identity: str = Depends(reviewer_auth.require_reviewer)):
-    if body.reviewer != identity:
-        raise HTTPException(403, 'Reviewer identity mismatch')
+def message_customer(case_id: str, body: AgentMessage):
     """A human support agent replies to the customer; shows up in the case conversation."""
     with gateway.LOCK:
         case = get_case(case_id)
@@ -209,3 +222,14 @@ app.mount('/ui', StaticFiles(directory=UI_DIR), name='ui')
 @app.get('/', include_in_schema=False)
 def workspace():
     return FileResponse(UI_DIR / 'index.html')
+
+
+@app.get('/judges', include_in_schema=False)
+def judges_dashboard():
+    """Stable entry to the existing 20-case dashboard; no UI redesign."""
+    return RedirectResponse('/ui/design-preview.html?demo=1')
+
+
+@app.get('/review', include_in_schema=False)
+def reviewer_dashboard():
+    return RedirectResponse('/ui/design-preview.html?review=1')

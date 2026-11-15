@@ -97,5 +97,6 @@ def main():
   print(number, 'PASS' if result['passed'] else 'FAIL',title,result.get('status'),result['errors'],flush=True)
   if args.delay:time.sleep(args.delay)
  print('RESULT',sum(r['passed'] for r in results),'/',len(results),flush=True)
+ return 0 if results and all(r['passed'] for r in results) else 1
 
-if __name__=='__main__':main()
+if __name__=='__main__':raise SystemExit(main())

@@ -57,11 +57,11 @@ class BackendChecks(unittest.TestCase):
         seed.seed()
 
     def request(self, method, path, **kwargs):
-        if method == 'POST' and path.endswith(('/approve', '/reject', '/message')):
-            with patch.dict(os.environ, {'REVIEWER_ACCESS_KEY':'test-reviewer-secret'}):
-                login = requests.post(self.base + '/reviewer/login', json={'reviewer':kwargs['json']['reviewer'], 'access_key':'test-reviewer-secret'}, timeout=10).json()
-            kwargs['headers'] = {'Authorization':'Bearer ' + login['access_token']}
-        return requests.request(method, self.base + path, timeout=10, **kwargs)
+        with requests.Session() as session:
+            if method=='POST' and path.endswith(('/approve','/reject')):
+                with patch.dict(os.environ,{'REVIEWER_USERNAME':'Reviewer','REVIEWER_PASSWORD':'test-password'}):
+                    session.post(self.base+'/review/login',json={'username':'Reviewer','password':'test-password'},timeout=10).raise_for_status()
+            return session.request(method,self.base+path,timeout=10,**kwargs)
 
     def chat(self, session='s1', customer='C001', message='hello', token=None):
         return self.request('POST', '/chat', json={'session_id': session, 'customer_id': customer, 'token': token or 'demo-' + customer, 'message': message})

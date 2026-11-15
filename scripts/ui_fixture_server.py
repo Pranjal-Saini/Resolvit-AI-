@@ -41,7 +41,8 @@ def fixture_agent(message, history, ctx, gateway):
 
 
 if __name__ == '__main__':
-    os.environ['REVIEWER_ACCESS_KEY']='test-ui-only-access-key'
+    os.environ['REVIEWER_USERNAME']='ui-approver'
+    os.environ['REVIEWER_PASSWORD']='ui-test-password'
     with tempfile.TemporaryDirectory(prefix='resolveai-ui-fixture-') as directory:
         with patch.object(db, 'DB_PATH', Path(directory)/'ui.db'), patch('engine.agent.run_agent', fixture_agent):
             seed.seed()

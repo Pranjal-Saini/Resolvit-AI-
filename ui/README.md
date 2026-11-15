@@ -20,7 +20,7 @@ Open http://127.0.0.1:8000. UI and API share an origin; there is no frontend bui
 - Audit trail: inspect real gateway decisions and filter by case.
 - Tool registry: inspect the seven tools and their input requirements.
 
-No API keys are sent to the browser. Customer identity uses the existing demo-token API contract. This is a hackathon demo; reviewer actions require a one-hour shared-key session. No OTP is required for contact changes. This demonstrates the workflow; it is not production identity verification.
+No API keys are sent to the browser. Customer identity uses the existing demo-token API contract. Reviewer decisions require the server-side login described below. Human-agent case APIs assume trusted local access. No OTP is required for contact changes. This demonstrates the workflow; it is not production identity verification.
 
 ## Joint regression checks
 
@@ -48,7 +48,7 @@ Restart the fixture server before rerunning; the check expects a fresh seed. `UI
 
 ## Reviewer controls
 
-Use `REVIEWER_ACCESS_KEY` from the private `.env` to sign in when approving. Contact changes require authenticated human approval, without OTP. Compromised accounts still block contact changes.
+Review queue now requires a username/password login. The dummy account and direct link are in `REVIEW_LOGIN.md`. The server protects the dedicated queue and approval/rejection APIs, and records the authenticated username. Human escalation chat remains separate. No OTP is required.
 
 ## Live demo
 

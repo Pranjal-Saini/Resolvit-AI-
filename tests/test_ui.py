@@ -15,6 +15,20 @@ class UIServingTests(unittest.TestCase):
         self.assertEqual(client.get('/ui/style.css').status_code, 200)
         self.assertEqual(client.get('/health').json(), {'ok': True})
 
+    def test_judges_entry_opens_existing_case_catalogue(self):
+        client=TestClient(app)
+        response=client.get('/judges')
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(str(response.url).endswith('/ui/design-preview.html?demo=1'))
+        self.assertIn('Demo cases · 20',response.text)
+        for asset in ['demo-scenarios.js','demo-panel.js','demo-panel.css','review-access.js']:
+            self.assertEqual(client.get('/ui/'+asset).status_code,200)
+
+    def test_review_entry_opens_login_gate(self):
+        response=TestClient(app).get('/review')
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(str(response.url).endswith('/ui/design-preview.html?review=1'))
+
     def test_environment_file_is_not_exposed_as_an_asset(self):
         client = TestClient(app)
         self.assertEqual(client.get('/ui/%2e%2e/.env').status_code, 404)

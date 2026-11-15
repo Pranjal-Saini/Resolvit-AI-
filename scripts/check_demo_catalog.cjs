@@ -1,0 +1,26 @@
+/* Test-only DOM checks. Requires jsdom; never calls Paytm, an LLM or the backend. */
+const {JSDOM}=require('jsdom'),fs=require('fs'),assert=require('node:assert/strict');
+const html=fs.readFileSync('ui/design-preview.html','utf8');
+const dom=new JSDOM(html,{runScripts:'outside-only',url:'http://127.0.0.1:8010/ui/design-preview.html'});
+const w=dom.window,d=w.document;let networkCalls=0;
+w.fetch=()=>{networkCalls++;throw Error('Prototype must not call a live API');};
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+const inline=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter(m=>!m[1].includes('src=')).map(m=>m[2]).join('\n');
+w.eval(fs.readFileSync('ui/demo-scenarios.js','utf8')+'\n'+inline+'\n'+fs.readFileSync('ui/demo-panel.js','utf8'));
+assert.equal(w.DEMO_SCENARIOS.length,20);assert.equal(new Set(w.DEMO_SCENARIOS.map(s=>s.id)).size,20);
+assert.equal(d.querySelectorAll('.nav button').length,2);
+const results=w.DEMO_SCENARIOS.map(s=>w.ResolveAIDemo.check(s.id));
+assert(results.every(r=>r.passed),JSON.stringify(results.filter(r=>!r.passed)));
+const click=s=>d.querySelector(s).click();
+w.ResolveAIDemo.load('19');assert(d.querySelector('[data-decision="approved"]').textContent.includes('contact'));assert(!d.querySelector('[data-decision="approved"]').textContent.includes('₹5,000'));
+click('[data-decision="approved"]');assert(d.querySelector('#content').textContent.includes('contact change was approved'));
+w.ResolveAIDemo.load('04');assert(d.querySelector('[data-decision="approved"]').textContent.includes('2,001'));
+d.querySelector('#decision-note').value='Need proof';click('[data-decision="info"]');click('#go-agent');assert(d.querySelector('#takeover'));assert.equal(d.querySelector('#reply'),null);
+click('#takeover');assert(d.querySelector('#reply'));
+w.ResolveAIDemo.load('20');assert(d.querySelector('#content').textContent.includes('Contact changes are blocked'));assert.equal(d.querySelector('[data-decision="approved"]'),null);
+click('#demo-cases');assert.equal(d.querySelectorAll('.scenario-row').length,20);
+d.querySelector('#demo-filter').value='Recharges & bills';d.querySelector('#demo-filter').dispatchEvent(new w.Event('change'));assert.equal(d.querySelectorAll('.scenario-row').length,6);
+click('#check-all-scenarios');assert(d.querySelector('#demo-check-summary').textContent.startsWith('20/20'));
+assert.equal(networkCalls,0);
+console.log(JSON.stringify({uiCasesPassed:results.length,backendIntegrationGaps:w.DEMO_SCENARIOS.filter(s=>s.gap).length,checks:['all 20 fixture routes','two personas only','contact-specific approval','exact-cap boundary display','information handoff and takeover','compromise blocks approval','category filter','no network side effects']},null,2));
+dom.window.close();

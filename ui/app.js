@@ -7,7 +7,7 @@ const currency = amount => new Intl.NumberFormat('en-IN',{style:'currency',curre
 const time = value => { if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); };
 const empty = (title,description) => `<div class="empty"><span class="empty-symbol">◇</span><strong>${esc(title)}</strong>${esc(description)}</div>`;
 let customers = [], cases = [], audits = [], tools = [], conversations = new Map(), currentCustomer = '', sending = false, refreshing = false;
-let activeCase = null, reviewerToken = '', reviewerName = ''; 
+let activeCase = null, reviewerName = '';
 function conversation() {
   if (!conversations.has(currentCustomer)) conversations.set(currentCustomer,{id:crypto.randomUUID(),messages:[]});
   return conversations.get(currentCustomer);
@@ -18,7 +18,7 @@ async function api(path, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.method ? 240000 : 15000);
   try {
-    const response = await fetch(path,{...options,headers:{'Content-Type':'application/json',...(reviewerToken?{Authorization:'Bearer '+reviewerToken}:{}),...options.headers},signal:controller.signal});
+    const response = await fetch(path,{...options,headers:{'Content-Type':'application/json',...options.headers},signal:controller.signal});
     let body;
     try { body = await response.json(); } catch { throw new Error('The server returned an unreadable response. Refresh and try again.'); }
     if (!response.ok) {
@@ -127,7 +127,7 @@ async function openCase(id) {
     const c=await api(`/cases/${encodeURIComponent(id)}`);activeCase=c;
     const approval=c.pending_approval;
     let args={};if(approval){try{args=JSON.parse(approval.args_json);}catch{args={};}}
-    $('#case-detail').innerHTML=`<div class="detail-header"><h2>${esc(c.id)}</h2>${badge(c.status)}</div><p class="subtle">${esc(customerName(c.customer_id))} · ${time(c.created_at)}</p><p class="detail-summary" style="margin-top:15px">${esc(c.summary || '')}</p>${approval?`<div class="detail-section"><h3>Pending approval</h3><div class="approval-box"><strong>${esc(approval.tool)}</strong><p>${args.amount?currency(args.amount)+' · ':''}${esc(args.txn_id || '')}</p><p>Policy: ${esc(approval.policy_ref || 'No citation supplied')}</p><p>Arguments: ${esc(JSON.stringify(args))}</p><label for="reviewer">Reviewer name</label><div class="approval-controls"><input id="reviewer" placeholder="Your name" autocomplete="name" value="${esc(reviewerName)}" required><input id="reviewer-key" type="password" placeholder="Reviewer access key" autocomplete="current-password" aria-label="Reviewer access key"><button class="button primary" id="approve-action">Approve action</button></div><div style="margin-top:15px"><label for="reject-note">Reason for rejection</label><div class="approval-controls"><input id="reject-note" placeholder="Explain why this should not proceed"><button class="button danger" id="reject-action">Reject request</button></div></div><div id="review-feedback" role="status"></div></div></div>`:''}<div class="detail-section"><h3>Conversation</h3>${c.messages.map(m=>`<div class="detail-message"><strong>${m.role==='assistant'?'ResolveAI':'Customer'}</strong><br>${esc(m.content)}</div>`).join('')||'<p class="subtle">No messages recorded.</p>'}</div><div class="detail-section"><h3>Audit trail</h3>${c.audit.map(a=>`<div class="tool-result"><strong>${esc(a.tool)}</strong> ${badge(a.decision)}<p class="subtle">${esc(a.reason || a.policy_ref || 'Action recorded')} · ${time(a.ts)}</p></div>`).join('')||'<p class="subtle">No actions recorded.</p>'}</div>`;
+    $('#case-detail').innerHTML=`<div class="detail-header"><h2>${esc(c.id)}</h2>${badge(c.status)}</div><p class="subtle">${esc(customerName(c.customer_id))} · ${time(c.created_at)}</p><p class="detail-summary" style="margin-top:15px">${esc(c.summary || '')}</p>${approval?`<div class="detail-section"><h3>Pending approval</h3><div class="approval-box"><strong>${esc(approval.tool)}</strong><p>${args.amount?currency(args.amount)+' · ':''}${esc(args.txn_id || '')}</p><p>Policy: ${esc(approval.policy_ref || 'No citation supplied')}</p><p>Arguments: ${esc(JSON.stringify(args))}</p><label for="reviewer">Reviewer name</label><div class="approval-controls"><input id="reviewer" placeholder="Your name" autocomplete="name" value="${esc(reviewerName)}" required><button class="button primary" id="approve-action">Approve action</button></div><div style="margin-top:15px"><label for="reject-note">Reason for rejection</label><div class="approval-controls"><input id="reject-note" placeholder="Explain why this should not proceed"><button class="button danger" id="reject-action">Reject request</button></div></div><div id="review-feedback" role="status"></div></div></div>`:''}<div class="detail-section"><h3>Conversation</h3>${c.messages.map(m=>`<div class="detail-message"><strong>${m.role==='assistant'?'ResolveAI':'Customer'}</strong><br>${esc(m.content)}</div>`).join('')||'<p class="subtle">No messages recorded.</p>'}</div><div class="detail-section"><h3>Audit trail</h3>${c.audit.map(a=>`<div class="tool-result"><strong>${esc(a.tool)}</strong> ${badge(a.decision)}<p class="subtle">${esc(a.reason || a.policy_ref || 'Action recorded')} · ${time(a.ts)}</p></div>`).join('')||'<p class="subtle">No actions recorded.</p>'}</div>`;
     if(!$('#case-dialog').open)$('#case-dialog').showModal();
     if(approval){$('#approve-action').onclick=()=>reviewCase('approve');$('#reject-action').onclick=()=>reviewCase('reject');}
   }catch(error){showError(error);}
@@ -138,14 +138,10 @@ async function reviewCase(action) {
   if(!reviewer || (action==='reject'&&!note)){feedback.textContent='Enter your name'+(action==='reject'?' and a rejection reason.':'.');return;}
   $('#approve-action').disabled=true;$('#reject-action').disabled=true;feedback.textContent='Saving the review…';
   try {
-    if(!reviewerToken || reviewerName!==reviewer){
-      const key=$('#reviewer-key').value;
-      if(!key)throw new Error('Enter your reviewer access key to sign in.');
-      const login=await api('/reviewer/login',{method:'POST',body:JSON.stringify({reviewer,access_key:key})});
-      reviewerToken=login.access_token;reviewerName=login.reviewer;
-      $('#reviewer-key').value='';
-    }
-    const result=await api(`/cases/${encodeURIComponent(activeCase.id)}/${action}`,{method:'POST',body:JSON.stringify({reviewer,...(action==='reject'?{note}:{})})});
+    const identity=await window.ReviewAccess.ensure();
+    if(!identity)throw new Error('Reviewer sign-in required');
+    reviewerName=identity;
+    const result=await api(`/cases/${encodeURIComponent(activeCase.id)}/${action}`,{method:'POST',body:JSON.stringify({reviewer:reviewerName,...(action==='reject'?{note}:{})})});
     if(result.result && result.result.status!=='ok')throw new Error(result.result.reason || 'The gateway did not complete this action.');
     await refresh();await openCase(activeCase.id);
     const conv=conversations.get(activeCase.customer_id);
@@ -154,7 +150,7 @@ async function reviewCase(action) {
       conv.messages.push({role:'review',content:last.content,status:activeCase.status,case_id:activeCase.id});
       renderMessages();
     }
-  }catch(error){if(error.status===401)reviewerToken='';feedback.textContent=error.message;$('#approve-action').disabled=false;$('#reject-action').disabled=false;await refresh();}
+  }catch(error){feedback.textContent=error.message;$('#approve-action').disabled=false;$('#reject-action').disabled=false;await refresh();}
 }
 document.addEventListener('click',event=>{
   const page=event.target.closest('[data-page]');if(page)navigate(page.dataset.page);
