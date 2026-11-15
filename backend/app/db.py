@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS approvals (
     status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')),
     reviewer TEXT, note TEXT, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS step_up_verifications (
+    case_id TEXT PRIMARY KEY REFERENCES cases(id), verified_by TEXT NOT NULL, verified_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL,
     case_id TEXT NOT NULL REFERENCES cases(id), actor TEXT NOT NULL,

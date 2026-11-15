@@ -1,6 +1,9 @@
 """LLM client: Groq first, local Ollama as fallback. Both speak the OpenAI API."""
 import os
 import sys
+from contextvars import ContextVar
+
+LAST_PROVIDER = ContextVar("last_llm_provider", default=None)
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -31,7 +34,9 @@ def chat(messages: list[dict], tools: list[dict] | None = None):
             kwargs = {"model": model, "messages": messages, "temperature": 0, **extra}
             if tools:
                 kwargs["tools"] = tools
-            return client.chat.completions.create(**kwargs).choices[0].message
+            message = client.chat.completions.create(**kwargs).choices[0].message
+            LAST_PROVIDER.set(name)
+            return message
         except Exception as e:  # rate limit, network, bad key: try the next provider
             errors.append(f"{name}: {e}")
             print(f"[llm] {name} failed, falling back: {str(e)[:200]}", file=sys.stderr)

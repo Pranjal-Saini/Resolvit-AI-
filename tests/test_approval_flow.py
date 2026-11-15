@@ -19,6 +19,9 @@ class ApprovalFlowTests(unittest.TestCase):
         self.enterContext(patch.object(db, "DB_PATH", Path(directory) / "approval.sqlite3"))
         seed.seed()
         self.client = self.enterContext(TestClient(app))
+        self.enterContext(patch.dict('os.environ', {'REVIEWER_ACCESS_KEY':'test-reviewer-secret'}))
+        token = self.client.post('/reviewer/login', json={'reviewer':'approval-test-reviewer','access_key':'test-reviewer-secret'}).json()['access_token']
+        self.client.headers['Authorization'] = 'Bearer ' + token
         self.ctx = CallContext(
             case_id="CASE-0001", session_id="approval-test", customer_id="C001"
         )

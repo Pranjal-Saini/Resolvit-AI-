@@ -22,6 +22,16 @@ def load_registry():
     return yaml.safe_load((Path(__file__).resolve().parents[1] / 'tools.yaml').read_text())
 
 
+def known_policy_ref(ref):
+    if not isinstance(ref, str) or '#' not in ref:
+        return False
+    filename, section = ref.split('#', 1)
+    if Path(filename).name != filename or not section:
+        return False
+    path = Path(__file__).resolve().parents[2] / 'engine' / 'policy_docs' / filename
+    return path.is_file() and any(line.strip() == '## ' + section for line in path.read_text().splitlines())
+
+
 def tool_definitions() -> list[dict]:
     definitions = []
     for tool in load_registry()['tools']:
@@ -85,6 +95,8 @@ def execute(call: ToolCall, ctx: CallContext) -> ToolResult:
                     mock_paytm.get_txn_status(ctx.customer_id, real_args['txn_id'])
                 except ValueError as exc:
                     return finish('blocked', str(exc))
+            if tier == 'sensitive' and mock_paytm.get_customer_profile(ctx.customer_id)['wallet_status'] == 'frozen':
+                return finish('blocked', 'contact changes blocked during account compromise')
             needs_approval = tier == 'sensitive' and not ctx.step_up_passed
             if tier == 'money_moving':
                 if not policy_ref or not policy_ref.strip():
@@ -94,6 +106,8 @@ def execute(call: ToolCall, ctx: CallContext) -> ToolResult:
                     return finish('blocked', 'transaction status not eligible')
                 if real_args['amount'] <= 0 or real_args['amount'] != txn['amount']:
                     return finish('blocked', 'amount must equal the positive debited amount')
+                if not known_policy_ref(policy_ref):
+                    return finish('blocked', 'unknown policy citation')
                 needs_approval = real_args['amount'] > tool['cap_inr'] and not ctx.approved_by
             if needs_approval:
                 masked_args = json.dumps(pii.mask_obj(args, ctx.session_id), sort_keys=True)

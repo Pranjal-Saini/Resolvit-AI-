@@ -7,3 +7,7 @@ backend/*.db-*
 .pytest_cache/
 .DS_Store
 engine/index/
+
+# Local query transcripts; publish only the aggregate review report.
+CUSTOMER_QUERY_*.json
+OLLAMA_QUERY_*.json

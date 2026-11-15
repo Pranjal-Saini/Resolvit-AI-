@@ -27,3 +27,15 @@ Point at: `freeze_wallet_upi` ran first, `escalate_to_human` follows automatical
 - Policy docs are paraphrased from Paytm Help + the RBI TAT circular (T+1 / T+5 reversal, ₹100/day compensation); the ₹2,000 cap is our own ops rule, clearly marked.
 - Status is derived from tool results in code, never by the LLM.
 - No confident policy match → no money tool reaches the gateway.
+
+## Dashboard launch
+
+The UI is now served by FastAPI. Run:
+
+```bash
+.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000. Choose **Customer support** for the prepared scenario buttons, then **Cases & approvals** to review a pending request. Review confirmations also appear in the customer conversation. Use **Audit trail** to inspect the actual gateway decisions.
+
+Joint-check evidence and remaining verification limits are recorded in `UI_JOINT_CHECK.md`.

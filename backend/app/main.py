@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 import json
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
-from backend.app import db, gateway, pii
+from backend.app import db, gateway, pii, reviewer_auth
 from shared.contracts import AgentResponse, CallContext, ChatRequest, ChatResponse, ToolCall
 
 
@@ -40,6 +43,32 @@ class Review(BaseModel):
 
 class Rejection(Review):
     note: str = Field(min_length=1)
+
+
+class ReviewerLogin(BaseModel):
+    reviewer: str = Field(min_length=1, pattern=r'\S')
+    access_key: str = Field(min_length=1)
+
+
+@app.post('/reviewer/login')
+def reviewer_login(body: ReviewerLogin):
+    return reviewer_auth.login(body.reviewer, body.access_key)
+
+
+class StepUp(Review):
+    code: str = Field(min_length=1)
+
+
+@app.post('/cases/{case_id}/verify')
+def verify_contact(case_id: str, body: StepUp, identity: str = Depends(reviewer_auth.require_reviewer)):
+    if body.reviewer != identity:
+        raise HTTPException(403, 'Reviewer identity mismatch')
+    case = get_case(case_id)
+    reviewer_auth.verify_step_up(body.code)
+    if db.fetch_one('SELECT wallet_status FROM customers WHERE id=?', (case['customer_id'],))['wallet_status'] == 'frozen':
+        raise HTTPException(409, 'Contact changes blocked during account compromise')
+    db.execute('INSERT OR REPLACE INTO step_up_verifications(case_id,verified_by,verified_at) VALUES(?,?,?)', (case_id, identity, gateway.now()))
+    return {'case_id':case_id, 'verified':True}
 
 
 def get_case(case_id):
@@ -94,7 +123,7 @@ def chat(request: ChatRequest):
                     raise
                 def run_agent(message, history, ctx, gateway):
                     return AgentResponse(reply='(stub) received', status='open')
-            response = AgentResponse.model_validate(run_agent(masked, history[-6:], ctx, gateway))
+            response = AgentResponse.model_validate(run_agent(masked, history[:-1][-6:], ctx, gateway))
         except Exception:
             response = AgentResponse(reply='Sorry, I could not complete your request. A human will help you.', status='escalated')
         response = AgentResponse.model_validate(pii.mask_obj(response.model_dump(), request.session_id))
@@ -133,10 +162,12 @@ def pending_approval(case_id):
 
 
 @app.post('/cases/{case_id}/approve')
-def approve(case_id: str, review: Review):
+def approve(case_id: str, review: Review, identity: str = Depends(reviewer_auth.require_reviewer)):
+    if review.reviewer != identity:
+        raise HTTPException(403, 'Reviewer identity mismatch')
     with gateway.LOCK:
         case, approval = pending_approval(case_id)
-        ctx = CallContext(case_id=case_id, session_id=case['session_id'], customer_id=case['customer_id'], approved_by=review.reviewer)
+        ctx = CallContext(case_id=case_id, session_id=case['session_id'], customer_id=case['customer_id'], approved_by=review.reviewer, step_up_passed=bool(db.fetch_one('SELECT case_id FROM step_up_verifications WHERE case_id=?', (case_id,))))
         result = gateway.execute(ToolCall(name=approval['tool'], args=json.loads(approval['args_json']), policy_ref=approval['policy_ref']), ctx)
         if result.status == 'ok':
             db.execute("UPDATE approvals SET status='approved',reviewer=? WHERE id=?", (review.reviewer, approval['id']))
@@ -149,7 +180,9 @@ def approve(case_id: str, review: Review):
 
 
 @app.post('/cases/{case_id}/reject')
-def reject(case_id: str, review: Rejection):
+def reject(case_id: str, review: Rejection, identity: str = Depends(reviewer_auth.require_reviewer)):
+    if review.reviewer != identity:
+        raise HTTPException(403, 'Reviewer identity mismatch')
     with gateway.LOCK:
         case, approval = pending_approval(case_id)
         db.execute("UPDATE approvals SET status='rejected',reviewer=?,note=? WHERE case_id=? AND status='pending'", (review.reviewer, pii.mask(review.note, case['session_id']), case_id))
@@ -163,7 +196,9 @@ class AgentMessage(Review):
 
 
 @app.post('/cases/{case_id}/message')
-def message_customer(case_id: str, body: AgentMessage):
+def message_customer(case_id: str, body: AgentMessage, identity: str = Depends(reviewer_auth.require_reviewer)):
+    if body.reviewer != identity:
+        raise HTTPException(403, 'Reviewer identity mismatch')
     """A human support agent replies to the customer; shows up in the case conversation."""
     with gateway.LOCK:
         case = get_case(case_id)
@@ -180,3 +215,13 @@ def metrics():
 @app.get('/tools')
 def tools():
     return gateway.load_registry()
+
+
+# Serve the support workspace alongside the API, with no separate frontend server.
+UI_DIR = Path(__file__).resolve().parents[2] / 'ui'
+app.mount('/ui', StaticFiles(directory=UI_DIR), name='ui')
+
+
+@app.get('/', include_in_schema=False)
+def workspace():
+    return FileResponse(UI_DIR / 'index.html')

@@ -4,6 +4,7 @@ Run: python -m scripts.demo_check
 The deterministic agent fixture tests integration wiring without an LLM.
 """
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -56,6 +57,10 @@ class BackendChecks(unittest.TestCase):
         seed.seed()
 
     def request(self, method, path, **kwargs):
+        if method == 'POST' and path.endswith(('/approve', '/reject', '/message')):
+            with patch.dict(os.environ, {'REVIEWER_ACCESS_KEY':'test-reviewer-secret'}):
+                login = requests.post(self.base + '/reviewer/login', json={'reviewer':kwargs['json']['reviewer'], 'access_key':'test-reviewer-secret'}, timeout=10).json()
+            kwargs['headers'] = {'Authorization':'Bearer ' + login['access_token']}
         return requests.request(method, self.base + path, timeout=10, **kwargs)
 
     def chat(self, session='s1', customer='C001', message='hello', token=None):
@@ -70,7 +75,7 @@ class BackendChecks(unittest.TestCase):
 
     def test_gateway_safety(self):
         ctx = self.context()
-        def reverse(txn, amount, policy='policy section 1'):
+        def reverse(txn, amount, policy='resolveai_operations.md#Auto-reversal limit'):
             return gateway.execute(ToolCall(name='trigger_reversal', args={'txn_id': txn, 'amount': amount}, policy_ref=policy), ctx)
         self.assertEqual(reverse('T1001', 499, None).status, 'blocked')
         self.assertEqual(reverse('T1003', 250).status, 'blocked')
@@ -125,7 +130,7 @@ class BackendChecks(unittest.TestCase):
                 call = ToolCall(name='freeze_wallet_upi', args={'reason': 'compromise'})
             else:
                 large = '5000' in message
-                call = ToolCall(name='trigger_reversal', args={'txn_id': 'T1002' if large else 'T1001', 'amount': 5000 if large else 499}, policy_ref='demo policy section 1')
+                call = ToolCall(name='trigger_reversal', args={'txn_id': 'T1002' if large else 'T1001', 'amount': 5000 if large else 499}, policy_ref='resolveai_operations.md#Auto-reversal limit')
             result = gateway.execute(call, ctx)
             return AgentResponse(reply='Processed', status='resolved' if result.status == 'ok' else 'awaiting_approval')
         engine = types.ModuleType('engine')
