@@ -1,6 +1,7 @@
 """Database contract tests; every write is confined to a temporary SQLite file."""
 
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -43,7 +44,7 @@ class DatabaseTests(unittest.TestCase):
 
     def test_required_tables_and_columns(self):
         # Inspect independently of the helpers under test.
-        with sqlite3.connect(self.database_path) as conn:
+        with closing(sqlite3.connect(self.database_path)) as conn, conn:
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
@@ -56,12 +57,12 @@ class DatabaseTests(unittest.TestCase):
 
     def test_initialization_preserves_existing_data(self):
         seed.seed()
-        with sqlite3.connect(self.database_path) as conn:
+        with closing(sqlite3.connect(self.database_path)) as conn, conn:
             conn.execute("UPDATE customers SET wallet_balance=123, wallet_status='frozen' WHERE id='C001'")
             before = list(conn.iterdump())
         db.init_db()
         db.init_db()
-        with sqlite3.connect(self.database_path) as conn:
+        with closing(sqlite3.connect(self.database_path)) as conn, conn:
             self.assertEqual(list(conn.iterdump()), before)
 
     def test_fetch_and_execute_helpers(self):
@@ -73,7 +74,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(row, {"name": "O'Brien", "wallet_balance": 10})
         self.assertIsInstance(row, dict)
         db.execute("UPDATE customers SET wallet_balance=? WHERE id=?", (25, "C-test"))
-        with sqlite3.connect(self.database_path) as conn:
+        with closing(sqlite3.connect(self.database_path)) as conn, conn:
             self.assertEqual(conn.execute("SELECT wallet_balance FROM customers").fetchone()[0], 25)
         self.assertEqual(db.fetch_all("SELECT id FROM customers ORDER BY id"), [{"id": "C-test"}])
         self.assertIsNone(db.fetch_one("SELECT id FROM customers WHERE id=?", ("' OR 1=1 --",)))
