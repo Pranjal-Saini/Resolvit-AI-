@@ -1,0 +1,40 @@
+tools:
+  - name: list_recent_transactions
+    description: List recent payments to locate a reported issue.
+    tier: read_only
+    args:
+      limit: {type: integer, required: false}
+  - name: get_txn_status
+    description: Check a payment before deciding on a remedy.
+    tier: read_only
+    args:
+      txn_id: {type: string, required: true}
+  - name: trigger_reversal
+    description: Reverse a failed debited payment after checking status and policy.
+    tier: money_moving
+    cap_inr: 2000
+    eligible_status: [failed_debited]
+    args:
+      txn_id: {type: string, required: true}
+      amount: {type: number, required: true}
+  - name: freeze_wallet_upi
+    description: Immediately freeze a wallet when compromise is reported.
+    tier: protective
+    args:
+      reason: {type: string, required: true}
+  - name: update_contact
+    description: Change the registered phone after step-up verification.
+    tier: sensitive
+    args:
+      new_phone: {type: string, required: true}
+  - name: schedule_followup
+    description: Request a follow-up for a pending transaction.
+    tier: platform
+    args:
+      txn_id: {type: string, required: true}
+      minutes: {type: integer, required: true}
+  - name: escalate_to_human
+    description: Escalate a case requiring human assistance.
+    tier: platform
+    args:
+      reason: {type: string, required: true}
