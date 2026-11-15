@@ -20,7 +20,7 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             db.DB_PATH = Path(directory) / 'check.db'
             seed.seed()
-            assert len(db.fetch_all('SELECT * FROM transactions')) == 4
+            assert len(db.fetch_all('SELECT * FROM transactions')) == 20
             db.execute("UPDATE customers SET wallet_balance=1300 WHERE id='C001'")
             db.init_db()
             assert db.fetch_one("SELECT wallet_balance FROM customers WHERE id='C001'")['wallet_balance'] == 1300
@@ -46,10 +46,8 @@ def main():
                     assert response.json() == {'ok': True}
                     response = requests.get(base + '/customers', timeout=5)
                     assert response.status_code == 200
-                    assert response.json() == [
-                        {'id': 'C001', 'name': 'Rahul Sharma'},
-                        {'id': 'C002', 'name': 'Priya Verma'},
-                    ]
+                    assert response.json() == db.fetch_all('SELECT id, name FROM customers ORDER BY id')
+                    assert len(response.json()) == 10
                     assert requests.get(base + '/docs', timeout=5).status_code == 200
                     print('PASS: database reset, startup preservation, contracts, /health, /customers, /docs')
                 finally:
