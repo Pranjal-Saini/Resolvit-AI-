@@ -6,3 +6,4 @@ backend/*.db
 backend/*.db-*
 .pytest_cache/
 .DS_Store
+engine/index/
