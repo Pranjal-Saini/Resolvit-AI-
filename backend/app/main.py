@@ -158,6 +158,19 @@ def reject(case_id: str, review: Rejection):
         return {'case_id': case_id, 'status': 'rejected'}
 
 
+class AgentMessage(Review):
+    message: str = Field(min_length=1, pattern=r'\S')
+
+
+@app.post('/cases/{case_id}/message')
+def message_customer(case_id: str, body: AgentMessage):
+    """A human support agent replies to the customer; shows up in the case conversation."""
+    with gateway.LOCK:
+        case = get_case(case_id)
+        append_message(case['session_id'], 'assistant', f'[Support · {body.reviewer}] {body.message}')
+        return {'case_id': case_id, 'status': case['status']}
+
+
 @app.get('/metrics')
 def metrics():
     rows = db.fetch_all('SELECT status,resolution_type FROM cases')

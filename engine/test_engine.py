@@ -30,5 +30,9 @@ assert derive_status([blk("get_txn_status")], "Which payment?") == "need_info"
 assert derive_status([ok("list_recent_transactions")], "Which payment do you mean?") == "need_info"
 assert derive_status([ok("list_recent_transactions"), ok("get_txn_status")], "Already reversed.") == "resolved"  # repeat request
 assert derive_status([blk("get_txn_status")], "I couldn't find it.") == "open"  # nothing verified
+assert derive_status([ok("list_recent_transactions"), ok("schedule_followup")], "Still pending.") == "open"
+assert derive_status([ok("trigger_reversal"), ok("schedule_followup")], "Reversed.") == "resolved"
+assert derive_status([ok("list_recent_transactions")], "It succeeded. Is there anything else I can help with?") == "resolved"
+assert derive_status([ok("list_recent_transactions")], "Which of the two ₹499 payments? Is there anything else?") == "need_info"
 assert derive_status([], "Hello.") == "open"
 print("all checks passed")
