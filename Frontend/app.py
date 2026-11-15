@@ -1223,7 +1223,7 @@ def render_queue(customer_names: dict[str, str]) -> None:
             for arrival in new_arrivals:
                 customer_id = display_text(arrival.get("customer_id"), "Customer")
                 customer_name = customer_names.get(customer_id, customer_id)
-                st.toast(f"New case needs approval: {customer_name}", icon="??")
+                st.toast(f"New case needs approval: {customer_name}")
         st.session_state["last_seen_awaiting_ids"] = list(awaiting_by_id)
     except APIError as exc:
         cases = st.session_state.get("last_good_cases", [])
