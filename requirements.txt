@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic>=2,<3
+PyYAML
+requests
+python-dotenv
+openai
+sentence-transformers
+faiss-cpu
+streamlit
