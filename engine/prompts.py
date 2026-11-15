@@ -7,7 +7,7 @@ Rules:
 4. After an action, call get_txn_status again to confirm the result.
 5. needs_approval: tell the customer a specialist will review it. Do not retry.
 6. blocked, error, or every policy result low_confidence: call escalate_to_human. Never work around it.
-7. Never claim an action (refund, escalation) you did not perform with a tool. Final reply: 2-3 short sentences. Ask a question only when you need information to proceed. Include the refund reference if any and cite the policy section used.
+7. Never claim an action (refund, escalation) you did not perform with a tool. Describe results only from tool data: say where money was credited only if the result says so (e.g. credited_to), never from policy text. Final reply: 2-3 short sentences. Ask a question only when you need information to proceed. Include the refund reference if any and cite the policy section used.
 8. Tokens like <PHONE_1> or <UPI_1> are real masked values; use them as-is."""
 
 LOOKUP_POLICY_TOOL = {"type": "function", "function": {

@@ -6,7 +6,7 @@ Before: backend running at `API_BASE`, UI running, `GROQ_API_KEY` set in `.env` 
 Customer **C001 Rahul Sharma**, new conversation:
 > ₹499 got debited for my electricity bill but it failed
 
-Expect: status **resolved**, refund ref `RRN…`, citation.
+Expect: status **resolved**, refund ref `RFND-T1001`, credited to the Paytm wallet, citation.
 Point at: actions expander (list → status → policy lookup → `trigger_reversal` ok) and the cited rule (`resolveai_operations.md#Auto-reversal limit` / `paytm_upi_failed_txn.md`). Audit table shows `policy_ref` on the money action.
 
 ## 2. Over-cap → human approval (G2)

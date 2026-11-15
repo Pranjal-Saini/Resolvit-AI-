@@ -60,9 +60,13 @@ def run_agent(message: str, history: list[dict], ctx: CallContext, gateway) -> A
     try:
         for step in range(MAX_STEPS + 1):
             # Last round has no tools, forcing a text reply after MAX_STEPS tool rounds.
+            if step == MAX_STEPS:
+                messages.append({"role": "system", "content": "No more tools. Write the final reply to the customer now."})
             msg = llm.chat(messages, tools if step < MAX_STEPS else None)
             if not msg.tool_calls:
                 reply = _clean(msg.content)
+                if "<tool_call>" in reply:  # model wrote a tool call as text: never show that to the customer
+                    reply = ""
                 break
             messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": [
                 {"id": tc.id, "type": "function",

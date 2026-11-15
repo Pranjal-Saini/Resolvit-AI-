@@ -100,7 +100,7 @@ def execute(call: ToolCall, ctx: CallContext) -> ToolResult:
                        reason=f"amount above auto-reversal cap of {CAP_INR}", approval=True)
         txn["status"] = "reversed"
         return res("ok", {"txn_id": a["txn_id"], "status": "reversed", "amount": txn["amount"],
-                          "refund_ref": f"RRN{a['txn_id'][1:]}{ctx.case_id[-4:]}"})
+                          "refund_ref": f"RFND-{a['txn_id']}", "credited_to": "paytm_wallet"})
     if call.name == "freeze_wallet_upi":
         DB["customers"][ctx.customer_id]["wallet_status"] = "frozen"
         return res("ok", {"wallet_status": "frozen"})
