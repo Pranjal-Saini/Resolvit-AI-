@@ -17,7 +17,7 @@ def fixture_agent(message, history, ctx, gateway):
     ref = 'resolveai_operations.md#Auto-reversal limit'
     if 'phone' in message.lower() and 'hacked' not in message.lower():
         result=gateway.execute(ToolCall(name='update_contact',args={'new_phone':'9988776655'}),ctx)
-        return AgentResponse(reply='Contact change needs verification and reviewer approval.',status='awaiting_approval',actions=[ActionTaken(tool='update_contact',status=result.status,summary=result.reason)])
+        return AgentResponse(reply='Contact change needs reviewer approval.',status='awaiting_approval',actions=[ActionTaken(tool='update_contact',status=result.status,summary=result.reason)])
     if 'hacked' in message.lower():
         calls = [ToolCall(name='freeze_wallet_upi', args={'reason':'Account compromised'}),
                  ToolCall(name='escalate_to_human', args={'reason':'Fraud follow-up'})]
@@ -42,7 +42,6 @@ def fixture_agent(message, history, ctx, gateway):
 
 if __name__ == '__main__':
     os.environ['REVIEWER_ACCESS_KEY']='test-ui-only-access-key'
-    os.environ['DEMO_STEP_UP_CODE']='123456'
     with tempfile.TemporaryDirectory(prefix='resolveai-ui-fixture-') as directory:
         with patch.object(db, 'DB_PATH', Path(directory)/'ui.db'), patch('engine.agent.run_agent', fixture_agent):
             seed.seed()

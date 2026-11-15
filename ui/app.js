@@ -109,7 +109,7 @@ function renderMessages() {
 function setBusy(busy) {
   sending=busy;$('#send').disabled=busy;$('#send').textContent=busy?'Working…':'Send message ↗';
   $('#customer').disabled=busy;$('#new-conversation').disabled=busy;
-  document.querySelectorAll('.scenario').forEach(b=>b.disabled=busy);
+  document.querySelectorAll('.scenario, .demo-start').forEach(b=>b.disabled=busy);
 }
 async function sendMessage(event) {
   event.preventDefault();
@@ -127,7 +127,7 @@ async function openCase(id) {
     const c=await api(`/cases/${encodeURIComponent(id)}`);activeCase=c;
     const approval=c.pending_approval;
     let args={};if(approval){try{args=JSON.parse(approval.args_json);}catch{args={};}}
-    $('#case-detail').innerHTML=`<div class="detail-header"><h2>${esc(c.id)}</h2>${badge(c.status)}</div><p class="subtle">${esc(customerName(c.customer_id))} · ${time(c.created_at)}</p><p class="detail-summary" style="margin-top:15px">${esc(c.summary || '')}</p>${approval?`<div class="detail-section"><h3>Pending approval</h3><div class="approval-box"><strong>${esc(approval.tool)}</strong><p>${args.amount?currency(args.amount)+' · ':''}${esc(args.txn_id || '')}</p><p>Policy: ${esc(approval.policy_ref || 'No citation supplied')}</p><p>Arguments: ${esc(JSON.stringify(args))}</p><label for="reviewer">Reviewer name</label><div class="approval-controls"><input id="reviewer" placeholder="Your name" autocomplete="name" value="${esc(reviewerName)}" required><input id="reviewer-key" type="password" placeholder="Reviewer access key" autocomplete="current-password" aria-label="Reviewer access key">${approval.tool==='update_contact'?'<input id="step-up-code" type="password" placeholder="Demo verification code" aria-label="Demo step-up verification code">':''}<button class="button primary" id="approve-action">Approve action</button></div><div style="margin-top:15px"><label for="reject-note">Reason for rejection</label><div class="approval-controls"><input id="reject-note" placeholder="Explain why this should not proceed"><button class="button danger" id="reject-action">Reject request</button></div></div><div id="review-feedback" role="status"></div></div></div>`:''}<div class="detail-section"><h3>Conversation</h3>${c.messages.map(m=>`<div class="detail-message"><strong>${m.role==='assistant'?'ResolveAI':'Customer'}</strong><br>${esc(m.content)}</div>`).join('')||'<p class="subtle">No messages recorded.</p>'}</div><div class="detail-section"><h3>Audit trail</h3>${c.audit.map(a=>`<div class="tool-result"><strong>${esc(a.tool)}</strong> ${badge(a.decision)}<p class="subtle">${esc(a.reason || a.policy_ref || 'Action recorded')} · ${time(a.ts)}</p></div>`).join('')||'<p class="subtle">No actions recorded.</p>'}</div>`;
+    $('#case-detail').innerHTML=`<div class="detail-header"><h2>${esc(c.id)}</h2>${badge(c.status)}</div><p class="subtle">${esc(customerName(c.customer_id))} · ${time(c.created_at)}</p><p class="detail-summary" style="margin-top:15px">${esc(c.summary || '')}</p>${approval?`<div class="detail-section"><h3>Pending approval</h3><div class="approval-box"><strong>${esc(approval.tool)}</strong><p>${args.amount?currency(args.amount)+' · ':''}${esc(args.txn_id || '')}</p><p>Policy: ${esc(approval.policy_ref || 'No citation supplied')}</p><p>Arguments: ${esc(JSON.stringify(args))}</p><label for="reviewer">Reviewer name</label><div class="approval-controls"><input id="reviewer" placeholder="Your name" autocomplete="name" value="${esc(reviewerName)}" required><input id="reviewer-key" type="password" placeholder="Reviewer access key" autocomplete="current-password" aria-label="Reviewer access key"><button class="button primary" id="approve-action">Approve action</button></div><div style="margin-top:15px"><label for="reject-note">Reason for rejection</label><div class="approval-controls"><input id="reject-note" placeholder="Explain why this should not proceed"><button class="button danger" id="reject-action">Reject request</button></div></div><div id="review-feedback" role="status"></div></div></div>`:''}<div class="detail-section"><h3>Conversation</h3>${c.messages.map(m=>`<div class="detail-message"><strong>${m.role==='assistant'?'ResolveAI':'Customer'}</strong><br>${esc(m.content)}</div>`).join('')||'<p class="subtle">No messages recorded.</p>'}</div><div class="detail-section"><h3>Audit trail</h3>${c.audit.map(a=>`<div class="tool-result"><strong>${esc(a.tool)}</strong> ${badge(a.decision)}<p class="subtle">${esc(a.reason || a.policy_ref || 'Action recorded')} · ${time(a.ts)}</p></div>`).join('')||'<p class="subtle">No actions recorded.</p>'}</div>`;
     if(!$('#case-dialog').open)$('#case-dialog').showModal();
     if(approval){$('#approve-action').onclick=()=>reviewCase('approve');$('#reject-action').onclick=()=>reviewCase('reject');}
   }catch(error){showError(error);}
@@ -145,11 +145,6 @@ async function reviewCase(action) {
       reviewerToken=login.access_token;reviewerName=login.reviewer;
       $('#reviewer-key').value='';
     }
-    if(action==='approve' && activeCase.pending_approval.tool==='update_contact'){
-      const code=$('#step-up-code').value;
-      if(!code)throw new Error('Enter the demo step-up verification code before approving a contact change.');
-      await api(`/cases/${encodeURIComponent(activeCase.id)}/verify`,{method:'POST',body:JSON.stringify({reviewer,code})});
-    }
     const result=await api(`/cases/${encodeURIComponent(activeCase.id)}/${action}`,{method:'POST',body:JSON.stringify({reviewer,...(action==='reject'?{note}:{})})});
     if(result.result && result.result.status!=='ok')throw new Error(result.result.reason || 'The gateway did not complete this action.');
     await refresh();await openCase(activeCase.id);
@@ -164,7 +159,7 @@ async function reviewCase(action) {
 document.addEventListener('click',event=>{
   const page=event.target.closest('[data-page]');if(page)navigate(page.dataset.page);
   const caseButton=event.target.closest('[data-case]');if(caseButton)openCase(caseButton.dataset.case);
-  const scenario=event.target.closest('.scenario');if(scenario&&!sending){
+  const scenario=event.target.closest('.scenario, .demo-start');if(scenario&&!sending){
     currentCustomer=scenario.dataset.customer;$('#customer').value=currentCustomer;
     conversations.set(currentCustomer,{id:crypto.randomUUID(),messages:[]});renderMessages();
     $('#message').value=scenario.dataset.message;$('#message').focus();

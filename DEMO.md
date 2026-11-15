@@ -1,41 +1,33 @@
-# ResolveAI demo script
+# Live demo: one question, the full journey
 
-Before: backend running at `API_BASE`, UI running, `GROQ_API_KEY` set in `.env` (Ollama `qwen3:8b` is the fallback), index built (`python -m engine.build_index`). Pre-run each message once.
+Open http://127.0.0.1:8010 → Customer support → **Prepare live demo**. This selects **C001 Rahul Sharma** and starts a fresh conversation. It does not send automatically.
 
-## 1. Auto-resolve under the cap (G1)
-Customer **C001 Rahul Sharma**, new conversation:
-> ₹499 got debited for my electricity bill but it failed
+## Customer question
 
-Expect: status **resolved**, refund ref `RFND-T1001`, credited to the Paytm wallet, citation.
-Point at: actions expander (list → status → policy lookup → `trigger_reversal` ok) and the cited rule (`resolveai_operations.md#Auto-reversal limit` / `paytm_upi_failed_txn.md`). Audit table shows `policy_ref` on the money action.
+> ₹5,000 was deducted for my flight booking, but the payment failed. Can you check what happened and help me get my money back?
 
-## 2. Over-cap → human approval (G2)
-Customer **C001**, click **New conversation**:
-> ₹5000 flight booking failed but money was deducted
+## Present in three minutes
 
-Expect: status **awaiting_approval**, "a specialist will review".
-Point at: dashboard review queue → case summary + pending `trigger_reversal` (₹5,000, policy_ref) → **Approve** → case resolved. Say: "the LLM never decides money: the gateway's ₹2,000 cap did, backed by a cited rule".
+1. **Send.** Say: “The customer describes a problem naturally; no transaction ID is needed.”
+2. **Expand Actions & policy citations.** Show the transaction lookup, T1002, the policy and `trigger_reversal` returning `needs_approval`. Say: “The AI identifies the request, but the gateway enforces the ₹2,000 auto-reversal limit.”
+3. **Open the case.** Show `awaiting_approval`, the ₹5,000 amount and policy reference. No money has moved yet.
+4. **Approve as reviewer.** Enter your name and reviewer access key from the private `.env`. Click Approve action. No OTP/code is required. Show `resolved` and refund reference `RFND-T1002`.
+5. **Show the customer confirmation and audit trail.** Point out the human approval and executed reversal. Say: “Every action is recorded, and repeated approval cannot refund twice.”
 
-## 3. Protective action (G3)
-Customer **C002 Priya Verma**:
-> someone hacked my account
+## Optional contrasts
 
-Expect: wallet **frozen** + status **escalated**.
-Point at: `freeze_wallet_upi` ran first, `escalate_to_human` follows automatically (enforced in code), escalated list on the dashboard.
+- Automatic: C001 — “₹499 got debited for my electricity bill but it failed.”
+- Protection: C002 — “Someone hacked my account. Please freeze my wallet immediately.”
+- Ambiguity: C001 on fresh data — “My payment failed.” The assistant should ask which payment.
 
-## Talking points
-- Policy docs are paraphrased from Paytm Help + the RBI TAT circular (T+1 / T+5 reversal, ₹100/day compensation); the ₹2,000 cap is our own ops rule, clearly marked.
-- Status is derived from tool results in code, never by the LLM.
-- No confident policy match → no money tool reaches the gateway.
+## Before presenting
 
-## Dashboard launch
+Use fresh dedicated demo data. A new conversation does not reset transactions; an already-reversed T1002 will not produce a new approval request. Check Groq quota; the small local fallback previously escalated payment flows rather than completing them. Keep `REVIEWER_ACCESS_KEY` ready privately and never project `.env`. No real Paytm money moves.
 
-The UI is now served by FastAPI. Run:
+## Regular local launch
 
 ```bash
 .venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. Choose **Customer support** for the prepared scenario buttons, then **Cases & approvals** to review a pending request. Review confirmations also appear in the customer conversation. Use **Audit trail** to inspect the actual gateway decisions.
-
-Joint-check evidence and remaining verification limits are recorded in `UI_JOINT_CHECK.md`.
+Open http://127.0.0.1:8000. Only reseed if you intend to clear that database’s demo activity.

@@ -24,6 +24,8 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  output.push('PASS: dashboard loads 10 customers, 7 tools and honest empty states');
  click('[data-page="chat"]');
  assert(d.querySelector('#page-chat').classList.contains('active'));
+ click('.demo-start');assert(d.querySelector('#message').value.includes('₹5,000'));
+ assert.equal(d.querySelectorAll('#messages .user').length,0);
  async function scenario(index){click(`.scenario:nth-of-type(${index})`);d.querySelector('#chat-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await waitFor(()=>!d.querySelector('#send').disabled,'agent response');if(d.querySelector('.message-error'))throw Error(d.querySelector('.message-error').textContent);}
  await scenario(1);
  assert(d.querySelector('#messages .assistant .badge').classList.contains('resolved'));
@@ -69,16 +71,16 @@ async function waitFor(fn,label,timeout=240000){const end=Date.now()+timeout;whi
  await waitFor(()=>!d.querySelector('#reject-action')&&d.querySelector('#case-detail .badge.rejected'),'rejected case');
  click('#close-dialog');
  output.push('PASS: rejection requires reviewer and reason, then persists a rejected case');
- // Complete the sensitive contact flow only after reviewer sign-in and verification.
+ // Complete the sensitive contact flow through reviewer approval, without OTP.
  d.querySelector('#customer').value='C004';d.querySelector('#customer').dispatchEvent(new w.Event('change'));
  d.querySelector('#message').value='Change my registered phone number to 9988776655';
  d.querySelector('#chat-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  await waitFor(()=>!d.querySelector('#send').disabled,'contact request');
- click('#messages [data-case]');await waitFor(()=>d.querySelector('#step-up-code'),'step-up form');
- click('#approve-action');await waitFor(()=>d.querySelector('#review-feedback').textContent.includes('verification code'),'verification required');
- d.querySelector('#step-up-code').value='123456';click('#approve-action');
- await waitFor(()=>!d.querySelector('#approve-action')&&d.querySelector('#case-detail .badge.resolved'),'verified contact approval');
- click('#close-dialog');output.push('PASS: contact update requires sign-in and demo step-up before approval');
+ click('#messages [data-case]');await waitFor(()=>d.querySelector('#approve-action'),'contact review');
+ assert.equal(d.querySelector('#step-up-code'),null);
+ click('#approve-action');
+ await waitFor(()=>!d.querySelector('#approve-action')&&d.querySelector('#case-detail .badge.resolved'),'contact approval');
+ click('#close-dialog');output.push('PASS: contact update requires human approval with no OTP step');
  // Test a failed request without resending a money-moving action.
  w.fetch=()=>Promise.reject(new TypeError('offline'));
  click('.reload');

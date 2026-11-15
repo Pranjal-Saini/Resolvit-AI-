@@ -180,7 +180,7 @@ class BackendChecks(unittest.TestCase):
         self.assertEqual(reversed_row['credited_to'], 'wallet')
         ctx.approved_by = 'Reviewer'
         self.assertEqual(gateway.execute(ToolCall(name='trigger_reversal', args={'txn_id': 'T1002', 'amount': 5000}), ctx).status, 'blocked')
-        self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'needs_approval')
+        self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'ok')
         from unittest.mock import patch
         agent = types.ModuleType('engine.agent')
         def fixture(message, history, ctx, gateway):

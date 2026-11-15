@@ -97,7 +97,7 @@ def execute(call: ToolCall, ctx: CallContext) -> ToolResult:
                     return finish('blocked', str(exc))
             if tier == 'sensitive' and mock_paytm.get_customer_profile(ctx.customer_id)['wallet_status'] == 'frozen':
                 return finish('blocked', 'contact changes blocked during account compromise')
-            needs_approval = tier == 'sensitive' and not ctx.step_up_passed
+            needs_approval = tier == 'sensitive' and not (ctx.step_up_passed or ctx.approved_by)
             if tier == 'money_moving':
                 if not policy_ref or not policy_ref.strip():
                     return finish('blocked', 'policy_ref required')

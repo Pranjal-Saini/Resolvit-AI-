@@ -131,14 +131,9 @@ def case_card(case_id, reviewer, actions=False, where="q"):
             audit_table(case.get("audit", []))
 
         if actions and pending:
-            # The gateway deliberately refuses reviewer approval for sensitive tools: the customer must pass step-up.
-            sensitive = tool_tiers().get(pending["tool"]) == "sensitive"
-            if sensitive:
-                st.warning("Sensitive change: needs the customer's step-up verification (OTP). Reviewer approval "
-                           "cannot execute it. Reject it, or message the customer to verify.")
             note = st.text_input("Rejection note (required to reject)", key=f"note-{where}-{case_id}")
             a, b = st.columns(2)
-            if a.button("Approve", key=f"ok-{where}-{case_id}", type="primary", width="stretch", disabled=sensitive):
+            if a.button("Approve", key=f"ok-{where}-{case_id}", type="primary", width="stretch"):
                 res = api("POST", f"/cases/{case_id}/approve", json={"reviewer": reviewer})
                 if res:
                     r = res["result"]

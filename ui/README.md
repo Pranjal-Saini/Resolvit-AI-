@@ -20,7 +20,7 @@ Open http://127.0.0.1:8000. UI and API share an origin; there is no frontend bui
 - Audit trail: inspect real gateway decisions and filter by case.
 - Tool registry: inspect the seven tools and their input requirements.
 
-No API keys are sent to the browser. Customer identity uses the existing demo-token API contract. This is a hackathon demo; reviewer actions require a one-hour shared-key session. Contact changes additionally require the demo step-up code. This demonstrates the workflow; it is not production identity verification.
+No API keys are sent to the browser. Customer identity uses the existing demo-token API contract. This is a hackathon demo; reviewer actions require a one-hour shared-key session. No OTP is required for contact changes. This demonstrates the workflow; it is not production identity verification.
 
 ## Joint regression checks
 
@@ -48,6 +48,8 @@ Restart the fixture server before rerunning; the check expects a fresh seed. `UI
 
 ## Reviewer controls
 
-Set `REVIEWER_ACCESS_KEY` and `DEMO_STEP_UP_CODE` in the private `.env` file. The local setup has generated these values there. Enter the reviewer name and access key in a case's review form. For contact changes, enter the verification code before approving. The server rejects unsigned reviews, mismatched session names and contact changes during account compromise. Neither secret is embedded in JavaScript.
+Use `REVIEWER_ACCESS_KEY` from the private `.env` to sign in when approving. Contact changes require authenticated human approval, without OTP. Compromised accounts still block contact changes.
 
-The demo verification code is a server-configured test factor, not a delivered customer OTP. Production needs individual reviewer accounts and a customer-bound verification channel.
+## Live demo
+
+Open Customer support → Prepare live demo → Send. The ₹5,000 flight-payment question demonstrates transaction identification, policy retrieval, the gateway cap, human approval and audit history. See `DEMO.md`. Use a fresh dedicated demo database: a new conversation does not undo an earlier reversal.

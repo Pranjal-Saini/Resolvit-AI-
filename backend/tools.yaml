@@ -23,7 +23,7 @@ tools:
     args:
       reason: {type: string, required: true}
   - name: update_contact
-    description: Change the registered phone after step-up verification.
+    description: Request a registered phone change; a human reviewer must approve it.
     tier: sensitive
     args:
       new_phone: {type: string, required: true}

@@ -36,11 +36,3 @@ def require_reviewer(authorization: str | None = Header(default=None)):
     if not session or session[1] <= time.monotonic():
         raise HTTPException(401, 'Reviewer sign-in required')
     return session[0]
-
-
-def verify_step_up(code):
-    expected = os.getenv('DEMO_STEP_UP_CODE', '')
-    if not expected:
-        raise HTTPException(503, 'Demo step-up verification is not configured')
-    if not hmac.compare_digest(code, expected):
-        raise HTTPException(403, 'Step-up verification failed')

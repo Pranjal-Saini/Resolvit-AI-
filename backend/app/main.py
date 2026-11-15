@@ -55,22 +55,6 @@ def reviewer_login(body: ReviewerLogin):
     return reviewer_auth.login(body.reviewer, body.access_key)
 
 
-class StepUp(Review):
-    code: str = Field(min_length=1)
-
-
-@app.post('/cases/{case_id}/verify')
-def verify_contact(case_id: str, body: StepUp, identity: str = Depends(reviewer_auth.require_reviewer)):
-    if body.reviewer != identity:
-        raise HTTPException(403, 'Reviewer identity mismatch')
-    case = get_case(case_id)
-    reviewer_auth.verify_step_up(body.code)
-    if db.fetch_one('SELECT wallet_status FROM customers WHERE id=?', (case['customer_id'],))['wallet_status'] == 'frozen':
-        raise HTTPException(409, 'Contact changes blocked during account compromise')
-    db.execute('INSERT OR REPLACE INTO step_up_verifications(case_id,verified_by,verified_at) VALUES(?,?,?)', (case_id, identity, gateway.now()))
-    return {'case_id':case_id, 'verified':True}
-
-
 def get_case(case_id):
     row = db.fetch_one('SELECT * FROM cases WHERE id=?', (case_id,))
     if row is None:
@@ -167,7 +151,7 @@ def approve(case_id: str, review: Review, identity: str = Depends(reviewer_auth.
         raise HTTPException(403, 'Reviewer identity mismatch')
     with gateway.LOCK:
         case, approval = pending_approval(case_id)
-        ctx = CallContext(case_id=case_id, session_id=case['session_id'], customer_id=case['customer_id'], approved_by=review.reviewer, step_up_passed=bool(db.fetch_one('SELECT case_id FROM step_up_verifications WHERE case_id=?', (case_id,))))
+        ctx = CallContext(case_id=case_id, session_id=case['session_id'], customer_id=case['customer_id'], approved_by=review.reviewer)
         result = gateway.execute(ToolCall(name=approval['tool'], args=json.loads(approval['args_json']), policy_ref=approval['policy_ref']), ctx)
         if result.status == 'ok':
             db.execute("UPDATE approvals SET status='approved',reviewer=? WHERE id=?", (review.reviewer, approval['id']))
