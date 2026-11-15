@@ -97,11 +97,6 @@ def chat(request: ChatRequest):
             response = AgentResponse.model_validate(run_agent(masked, history[-6:], ctx, gateway))
         except Exception:
             response = AgentResponse(reply='Sorry, I could not complete your request. A human will help you.', status='escalated')
-        current = get_case(case_id)
-        if db.fetch_one("SELECT id FROM approvals WHERE case_id=? AND status='pending'", (case_id,)):
-            response.status = 'awaiting_approval'
-        elif current['status'] == 'escalated':
-            response.status = 'escalated'
         response = AgentResponse.model_validate(pii.mask_obj(response.model_dump(), request.session_id))
         append_message(request.session_id, 'assistant', response.reply)
         db.execute('UPDATE cases SET status=?,summary=?,resolved_at=?,resolution_type=? WHERE id=?', (response.status, response.case_summary, gateway.now() if response.status == 'resolved' else None, 'auto' if response.status == 'resolved' else None, case_id))
@@ -148,7 +143,7 @@ def approve(case_id: str, review: Review):
             remaining = db.fetch_one("SELECT id FROM approvals WHERE case_id=? AND status='pending'", (case_id,))
             status = 'awaiting_approval' if remaining else 'resolved'
             db.execute('UPDATE cases SET status=?,resolution_type=?,resolved_at=? WHERE id=?', (status, 'human_approved' if not remaining else None, gateway.now() if not remaining else None, case_id))
-            message = f"Your refund of ₹{result.data['amount']:g} has been approved and processed. Ref: {result.data['refund_ref']}" if approval['tool'] == 'reverse_payment' else 'Your requested change has been approved and processed.'
+            message = f"Your refund of ₹{result.data['amount']:g} has been approved and processed. Ref: {result.data['refund_ref']}" if approval['tool'] == 'trigger_reversal' else 'Your requested change has been approved and processed.'
             append_message(case['session_id'], 'assistant', message)
         return {'case_id': case_id, 'status': get_case(case_id)['status'], 'result': result}
 

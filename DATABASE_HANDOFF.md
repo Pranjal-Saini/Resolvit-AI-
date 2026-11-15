@@ -4,7 +4,7 @@
 
 - Demo database: `backend/resolveai.db`, 10 customers and 20 transactions.
 - Five database tests pass: `.venv/bin/python -m unittest discover -s tests -p test_database.py -v`.
-- Four isolated backend checks pass: `.venv/bin/python -m scripts.demo_check`.
+- Five isolated backend checks pass: `.venv/bin/python -m scripts.demo_check`.
 - Backend checks cover refunds, concurrent duplicate requests, approvals, audit entries, masking and HTTP wiring using a deterministic agent fixture, not the real agent.
 - The supplied agent transcript has not been reproduced in this database: T1001 is still `failed_debited`, C001 has ₹1,200, and cases/audit are empty at inspection time.
 
@@ -19,7 +19,7 @@ from shared.contracts import ToolCall
 
 result = gateway.execute(
     ToolCall(
-        name="reverse_payment",
+        name="trigger_reversal",
         args={"txn_id": "T1001", "amount": 499},
         policy_ref="resolveai_operations.md#Auto-reversal limit",
     ),
@@ -31,8 +31,8 @@ The agent must choose the tool and policy reference based on the request and ret
 
 | Agent transcript name | Backend tool name |
 |---|---|
-| `trigger_reversal` | `reverse_payment` |
-| `get_txn_status` | `get_payment_status` |
+| `trigger_reversal` | `trigger_reversal` |
+| `get_txn_status` | `get_txn_status` |
 | `list_recent_transactions` | `list_recent_transactions` |
 
 Use the gateway's returned refund reference in the customer reply. This mock backend returns `RFND-T1001`; do not invent an RRN.
@@ -46,3 +46,7 @@ Use the gateway's returned refund reference in the customer reply. This mock bac
 5. Repeat the request. The balance must remain ₹1,699; no second refund may execute.
 
 Do not run seed during teammate testing: it clears case, conversation, approval and audit data. Do not change the schema or shared contracts just to match another mock implementation.
+
+## Engine contract alignment
+
+The registry exposes the seven agreed engine tools. Reversals require a policy reference even with human approval, the full debited amount, and transaction ownership. Contact updates require step-up verification. AgentResponse.status is persisted unchanged. The engine reference module and teammate config updates were not yet on origin/main during this verification; real-agent testing remains pending.

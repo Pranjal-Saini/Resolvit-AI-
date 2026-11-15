@@ -68,16 +68,16 @@ class BackendChecks(unittest.TestCase):
     def test_gateway_safety(self):
         ctx = self.context()
         def reverse(txn, amount, policy='policy section 1'):
-            return gateway.execute(ToolCall(name='reverse_payment', args={'txn_id': txn, 'amount': amount}, policy_ref=policy), ctx)
+            return gateway.execute(ToolCall(name='trigger_reversal', args={'txn_id': txn, 'amount': amount}, policy_ref=policy), ctx)
         self.assertEqual(reverse('T1001', 499, None).status, 'blocked')
         self.assertEqual(reverse('T1003', 250).status, 'blocked')
         self.assertEqual(reverse('T2001', 1000).status, 'blocked')
-        for amount in (0, -1, 500):
+        for amount in (0, -1, 498, 500):
             self.assertEqual(reverse('T1001', amount).status, 'blocked')
         for amount in (True, '499', float('nan'), float('inf')):
             self.assertEqual(reverse('T1001', amount).status, 'error')
         self.assertEqual(gateway.execute(ToolCall(name='drop_tables'), ctx).status, 'blocked')
-        self.assertEqual(gateway.execute(ToolCall(name='reverse_payment'), ctx).status, 'error')
+        self.assertEqual(gateway.execute(ToolCall(name='trigger_reversal'), ctx).status, 'error')
         ctx.verified = False
         self.assertEqual(reverse('T1001', 499).status, 'blocked')
         ctx.verified = True
@@ -103,25 +103,25 @@ class BackendChecks(unittest.TestCase):
         self.assertEqual(masked, '<PHONE_1> <EMAIL_1> <UPI_1> <ACCT_1>')
         self.assertEqual(pii.mask(text, 's1'), masked)
         self.assertEqual(pii.unmask({'x': [masked]}, 's1'), {'x': [text]})
-        result = gateway.execute(ToolCall(name='get_customer_profile'), ctx)
+        result = gateway.execute(ToolCall(name='list_recent_transactions'), ctx)
         self.assertNotIn('9876543210', json.dumps(result.data))
-        call = ToolCall(name='update_registered_phone', args={'new_phone': '<PHONE_1>'})
+        call = ToolCall(name='update_contact', args={'new_phone': '<PHONE_1>'})
         self.assertEqual(gateway.execute(call, ctx).status, 'needs_approval')
         response = self.request('POST', f'/cases/{ctx.case_id}/reject', json={'reviewer': 'Reviewer', 'note': 'Please verify identity'})
         self.assertEqual(response.json()['status'], 'rejected')
         self.assertEqual(self.request('POST', f'/cases/{ctx.case_id}/approve', json={'reviewer': 'Reviewer'}).status_code, 409)
         other = self.chat(session='s2').json()['case_id']
         ctx = CallContext(case_id=other, session_id='s2', customer_id='C001', step_up_passed=True)
-        self.assertEqual(gateway.execute(ToolCall(name='update_registered_phone', args={'new_phone': '9988776655'}), ctx).status, 'ok')
+        self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'ok')
         self.assertNotIn('9988776655', json.dumps(self.request('GET', '/audit').json()))
 
     def test_http_fixture_scenarios(self):
         def fixture(message, history, ctx, gateway):
             if 'hacked' in message:
-                call = ToolCall(name='freeze_wallet', args={'reason': 'compromise'})
+                call = ToolCall(name='freeze_wallet_upi', args={'reason': 'compromise'})
             else:
                 large = '5000' in message
-                call = ToolCall(name='reverse_payment', args={'txn_id': 'T1002' if large else 'T1001', 'amount': 5000 if large else 499}, policy_ref='demo policy section 1')
+                call = ToolCall(name='trigger_reversal', args={'txn_id': 'T1002' if large else 'T1001', 'amount': 5000 if large else 499}, policy_ref='demo policy section 1')
             result = gateway.execute(call, ctx)
             return AgentResponse(reply='Processed', status='resolved' if result.status == 'ok' else 'awaiting_approval')
         engine = types.ModuleType('engine')
@@ -141,9 +141,36 @@ class BackendChecks(unittest.TestCase):
         self.assertEqual(self.chat(token='bad').status_code, 401)
         self.assertEqual(self.chat(customer='C002').status_code, 403)
         self.assertEqual(self.request('GET', '/metrics').json()['auto_resolution_rate'], 2 / 3)
-        self.assertEqual(len(self.request('GET', '/tools').json()['tools']), 9)
-        self.assertEqual(len(gateway.tool_definitions()), 9)
+        self.assertEqual(len(self.request('GET', '/tools').json()['tools']), 7)
+        self.assertEqual(len(gateway.tool_definitions()), 7)
         self.assertEqual(self.request('GET', '/cases/missing').status_code, 404)
+
+    def test_engine_gateway_contract(self):
+        definitions = {item['function']['name']: item['function']['parameters'] for item in gateway.tool_definitions()}
+        self.assertEqual(set(definitions), {'list_recent_transactions', 'get_txn_status', 'trigger_reversal', 'freeze_wallet_upi', 'update_contact', 'schedule_followup', 'escalate_to_human'})
+        for name in ('trigger_reversal', 'update_contact'):
+            self.assertEqual(definitions[name]['properties']['policy_ref']['type'], 'string')
+            self.assertNotIn('policy_ref', definitions[name]['required'])
+        ctx = self.context()
+        for name, args in [('get_txn_status', {'txn_id': 'T2001'}), ('schedule_followup', {'txn_id': 'T2001', 'minutes': 5})]:
+            self.assertEqual(gateway.execute(ToolCall(name=name, args=args), ctx).status, 'blocked')
+        call = ToolCall(name='trigger_reversal', args={'txn_id': 'T1001', 'amount': 499}, policy_ref='resolveai_operations.md#Auto-reversal limit')
+        result = gateway.execute(call, ctx)
+        self.assertEqual(result.status, 'ok')
+        self.assertEqual(result.data, {'txn_id': 'T1001', 'status': 'reversed', 'amount': 499, 'refund_ref': 'RFND-T1001'})
+        ctx.approved_by = 'Reviewer'
+        self.assertEqual(gateway.execute(ToolCall(name='trigger_reversal', args={'txn_id': 'T1002', 'amount': 5000}), ctx).status, 'blocked')
+        self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'needs_approval')
+        from unittest.mock import patch
+        agent = types.ModuleType('engine.agent')
+        def fixture(message, history, ctx, gateway):
+            gateway.execute(ToolCall(name='escalate_to_human', args={'reason': 'review'}), ctx)
+            return AgentResponse(reply='Need more details', status='need_info')
+        agent.run_agent = fixture
+        with patch.dict(sys.modules, {'engine.agent': agent}):
+            response = self.chat(session='status-check').json()
+        self.assertEqual(response['status'], 'need_info')
+        self.assertEqual(db.fetch_one('SELECT status FROM cases WHERE id=?', (response['case_id'],))['status'], 'need_info')
 
     def test_stub_and_agent_failure(self):
         from unittest.mock import patch
