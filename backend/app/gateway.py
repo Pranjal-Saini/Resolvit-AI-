@@ -74,7 +74,7 @@ def execute(call: ToolCall, ctx: CallContext) -> ToolResult:
             if tier == 'money_moving' and (not policy_ref or not policy_ref.strip()):
                 return finish('blocked', 'policy_ref required')
             previous = db.fetch_one("SELECT id,result_json FROM audit_log WHERE idempotency_key=? AND decision='executed' ORDER BY id LIMIT 1", (key,))
-            if previous:
+            if previous and tier != 'read_only':
                 result = ToolResult.model_validate_json(previous['result_json'])
                 result.audit_id = previous['id']
                 audit(call, ctx, tier, 'replayed', result, key)

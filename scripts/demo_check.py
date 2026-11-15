@@ -12,6 +12,7 @@ import threading
 import time
 import types
 import unittest
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 
 # Support the documented `python scripts/demo_check.py` invocation.
@@ -61,7 +62,9 @@ class BackendChecks(unittest.TestCase):
         return self.request('POST', '/chat', json={'session_id': session, 'customer_id': customer, 'token': token or 'demo-' + customer, 'message': message})
 
     def context(self):
-        response = self.chat()
+        from unittest.mock import patch
+        with patch.dict(sys.modules, {'engine': None, 'engine.agent': None}):
+            response = self.chat()
         self.assertEqual(response.status_code, 200)
         return CallContext(case_id=response.json()['case_id'], session_id='s1', customer_id='C001')
 
@@ -110,7 +113,8 @@ class BackendChecks(unittest.TestCase):
         response = self.request('POST', f'/cases/{ctx.case_id}/reject', json={'reviewer': 'Reviewer', 'note': 'Please verify identity'})
         self.assertEqual(response.json()['status'], 'rejected')
         self.assertEqual(self.request('POST', f'/cases/{ctx.case_id}/approve', json={'reviewer': 'Reviewer'}).status_code, 409)
-        other = self.chat(session='s2').json()['case_id']
+        with patch.dict(sys.modules, {'engine': None, 'engine.agent': None}):
+            other = self.chat(session='s2').json()['case_id']
         ctx = CallContext(case_id=other, session_id='s2', customer_id='C001', step_up_passed=True)
         self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'ok')
         self.assertNotIn('9988776655', json.dumps(self.request('GET', '/audit').json()))
@@ -152,12 +156,23 @@ class BackendChecks(unittest.TestCase):
             self.assertEqual(definitions[name]['properties']['policy_ref']['type'], 'string')
             self.assertNotIn('policy_ref', definitions[name]['required'])
         ctx = self.context()
+        listed = gateway.execute(ToolCall(name='list_recent_transactions'), ctx)
+        self.assertTrue(all(row['txn_id'] == row['id'] for row in listed.data['transactions']))
+        checked = gateway.execute(ToolCall(name='get_txn_status', args={'txn_id': 'T1001'}), ctx)
+        self.assertEqual(checked.data['txn_id'], 'T1001')
         for name, args in [('get_txn_status', {'txn_id': 'T2001'}), ('schedule_followup', {'txn_id': 'T2001', 'minutes': 5})]:
             self.assertEqual(gateway.execute(ToolCall(name=name, args=args), ctx).status, 'blocked')
         call = ToolCall(name='trigger_reversal', args={'txn_id': 'T1001', 'amount': 499}, policy_ref='resolveai_operations.md#Auto-reversal limit')
         result = gateway.execute(call, ctx)
         self.assertEqual(result.status, 'ok')
-        self.assertEqual(result.data, {'txn_id': 'T1001', 'status': 'reversed', 'amount': 499, 'refund_ref': 'RFND-T1001'})
+        self.assertEqual(result.data, {'txn_id': 'T1001', 'status': 'reversed', 'amount': 499, 'refund_ref': 'RFND-T1001', 'credited_to': 'wallet', 'refund_status': 'completed'})
+        checked = gateway.execute(ToolCall(name='get_txn_status', args={'txn_id': 'T1001'}), ctx)
+        self.assertEqual(checked.data['status'], 'reversed')
+        self.assertEqual(checked.data['credited_to'], 'wallet')
+        self.assertEqual(checked.data['refund_status'], 'completed')
+        listed = gateway.execute(ToolCall(name='list_recent_transactions'), ctx)
+        reversed_row = next(row for row in listed.data['transactions'] if row['txn_id'] == 'T1001')
+        self.assertEqual(reversed_row['credited_to'], 'wallet')
         ctx.approved_by = 'Reviewer'
         self.assertEqual(gateway.execute(ToolCall(name='trigger_reversal', args={'txn_id': 'T1002', 'amount': 5000}), ctx).status, 'blocked')
         self.assertEqual(gateway.execute(ToolCall(name='update_contact', args={'new_phone': '9988776655'}), ctx).status, 'needs_approval')

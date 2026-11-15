@@ -10,17 +10,25 @@ def get_customer_profile(customer_id):
     return row
 
 
+def transaction_details(row):
+    if row['status'] == 'reversed':
+        row.update(credited_to='wallet', refund_status='completed',
+                   refund_ref='RFND-' + row['txn_id'])
+    return row
+
+
 def list_recent_transactions(customer_id, limit=5):
     if not 1 <= limit <= 100:
         raise ValueError('limit must be between 1 and 100')
-    return {'transactions': db.fetch_all('SELECT * FROM transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT ?', (customer_id, limit))}
+    rows = db.fetch_all('SELECT *, id AS txn_id FROM transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT ?', (customer_id, limit))
+    return {'transactions': [transaction_details(row) for row in rows]}
 
 
 def get_txn_status(customer_id, txn_id):
-    row = db.fetch_one('SELECT * FROM transactions WHERE id=? AND customer_id=?', (txn_id, customer_id))
+    row = db.fetch_one('SELECT *, id AS txn_id FROM transactions WHERE id=? AND customer_id=?', (txn_id, customer_id))
     if row is None:
         raise ValueError('transaction not found for customer')
-    return row
+    return transaction_details(row)
 
 
 def get_wallet_balance(customer_id):
@@ -38,7 +46,7 @@ def trigger_reversal(customer_id, txn_id, amount):
             conn.execute('UPDATE customers SET wallet_balance=wallet_balance+? WHERE id=?', (amount, customer_id))
     finally:
         conn.close()
-    return {'txn_id': txn_id, 'status': 'reversed', 'amount': amount, 'refund_ref': 'RFND-' + txn_id}
+    return {'txn_id': txn_id, 'status': 'reversed', 'amount': amount, 'refund_ref': 'RFND-' + txn_id, 'credited_to': 'wallet', 'refund_status': 'completed'}
 
 
 def freeze_wallet_upi(customer_id, reason):

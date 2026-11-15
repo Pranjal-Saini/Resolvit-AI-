@@ -3,14 +3,14 @@
 ## Verified locally
 
 - Demo database: `backend/resolveai.db`, 10 customers and 20 transactions.
-- Five database tests pass: `.venv/bin/python -m unittest discover -s tests -p test_database.py -v`.
+- Nine database, approval and account-protection tests pass: `.venv/bin/python -m unittest discover -s tests -p test_database.py -v`.
 - Five isolated backend checks pass: `.venv/bin/python -m scripts.demo_check`.
 - Backend checks cover refunds, concurrent duplicate requests, approvals, audit entries, masking and HTTP wiring using a deterministic agent fixture, not the real agent.
-- The supplied agent transcript has not been reproduced in this database: T1001 is still `failed_debited`, C001 has ₹1,200, and cases/audit are empty at inspection time.
+- Real-agent verification uses a temporary database; shared demo records are preserved.
 
 ## Agent integration
 
-The backend imports `engine.agent.run_agent(message, history, ctx, gateway)` and expects a `shared.contracts.AgentResponse`. There is no `engine/` module in this checkout yet; the HTTP endpoint currently falls back to a stub.
+The backend imports `engine.agent.run_agent(message, history, ctx, gateway)` and expects a `shared.contracts.AgentResponse`. The real engine is now integrated. Groq testing verified the ₹499 refund and repeated complaint, including persisted case/audit data and no second wallet credit.
 
 Use the supplied gateway module to execute tools, rather than a separate mock store:
 
@@ -49,4 +49,4 @@ Do not run seed during teammate testing: it clears case, conversation, approval 
 
 ## Engine contract alignment
 
-The registry exposes the seven agreed engine tools. Reversals require a policy reference even with human approval, the full debited amount, and transaction ownership. Contact updates require step-up verification. AgentResponse.status is persisted unchanged. The engine reference module and teammate config updates were not yet on origin/main during this verification; real-agent testing remains pending.
+The registry exposes the seven agreed engine tools. Reversals require a policy reference even with human approval, the full debited amount, and transaction ownership. Contact updates require step-up verification. AgentResponse.status is persisted unchanged. The engine and shared configuration have been pulled. The refund response includes `credited_to: "wallet"` and `refund_status: "completed"`; status lookups and transaction lists retain these facts for repeated complaints. Read tools always return current data; mutation retries retain duplicate protection.
