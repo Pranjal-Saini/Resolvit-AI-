@@ -25,7 +25,11 @@ def derive_status(actions: list[ActionTaken], reply: str) -> str:
         return "escalated"
     if ok & (MONEY_TOOLS | PROTECTIVE_TOOLS):
         return "resolved"
-    return "need_info" if "?" in reply else "open"
+    if "?" in reply:
+        return "need_info"
+    # Answered from verified tool data (e.g. "already reversed", "payment succeeded"): nothing left to do.
+    # With no tool call at all the answer is unverified, so the case stays open.
+    return "resolved" if ok else "open"
 
 
 def _clean(text: str | None) -> str:

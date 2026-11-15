@@ -28,5 +28,7 @@ assert derive_status([ok("freeze_wallet_upi"), ok("escalate_to_human")], "") == 
 assert derive_status([blk("trigger_reversal")], "") == "escalated"
 assert derive_status([blk("get_txn_status")], "Which payment?") == "need_info"
 assert derive_status([ok("list_recent_transactions")], "Which payment do you mean?") == "need_info"
+assert derive_status([ok("list_recent_transactions"), ok("get_txn_status")], "Already reversed.") == "resolved"  # repeat request
+assert derive_status([blk("get_txn_status")], "I couldn't find it.") == "open"  # nothing verified
 assert derive_status([], "Hello.") == "open"
 print("all checks passed")
